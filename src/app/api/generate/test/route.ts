@@ -290,7 +290,7 @@ async function handleRequest(req: NextRequest) {
       if (body && body.topic) {
         customTopic = body.topic;
       }
-    } catch (e) {
+    } catch {
       // Ignored if raw body is empty or not JSON
     }
   }
@@ -449,7 +449,7 @@ Ensure 'image_metaphors' has exactly 2 visual scenes.
           blogId = workspace.bloggerBlogId;
           console.log(`[Next.js Spike]   => Routing to custom workspace blog ID from Cloud DB: ${blogId}`);
         }
-      } catch (e) {
+      } catch {
         // Fallback to default blogId if db read fails
       }
 
@@ -464,8 +464,9 @@ Ensure 'image_metaphors' has exactly 2 visual scenes.
       });
       bloggerResult = res.data;
       console.log(`[Next.js Spike]   => Success! Created Blogger post draft: ${res.data.url}`);
-    } catch (blogErr: any) {
-      bloggerError = blogErr.message || String(blogErr);
+    } catch (blogErr: unknown) {
+      const blogErrMessage = blogErr instanceof Error ? blogErr.message : String(blogErr);
+      bloggerError = blogErrMessage;
       console.error("[Next.js Spike]   => Blogger publishing failed:", blogErr);
     }
 
@@ -479,13 +480,15 @@ Ensure 'image_metaphors' has exactly 2 visual scenes.
       message: bloggerResult ? "Successfully generated and published draft to Blogger." : "Generated post locally, but failed to publish to Blogger."
     });
 
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("[Next.js Spike] Pipeline Error:", err);
+    const errMessage = err instanceof Error ? err.message : String(err);
+    const errStack = err instanceof Error ? err.stack : undefined;
     return NextResponse.json(
       {
         success: false,
-        error: err.message || String(err),
-        details: err.stack
+        error: errMessage,
+        details: errStack
       },
       { status: 500 }
     );

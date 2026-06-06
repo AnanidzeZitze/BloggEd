@@ -108,7 +108,7 @@ export default function SettingsPage() {
             Custom Brand Context
           </h2>
           <p className="text-xs text-gray-400">
-            Describe your brand, target audience, specific category, and core differentiators. This information is injected into the AI's prompt for deep, relevant industry targeting.
+            Describe your brand, target audience, specific category, and core differentiators. This information is injected into the AI&apos;s prompt for deep, relevant industry targeting.
           </p>
           <div>
             <textarea

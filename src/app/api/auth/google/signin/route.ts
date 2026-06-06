@@ -18,10 +18,11 @@ export async function GET(req: NextRequest) {
 
     console.log(`[OAuth SignIn] Redirecting to Google for workspace: ${workspaceId}`);
     return NextResponse.redirect(authUrl);
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("[OAuth SignIn] Error generating auth URL:", err);
+    const errorMessage = err instanceof Error ? err.message : String(err);
     return NextResponse.json(
-      { success: false, error: err.message || String(err) },
+      { success: false, error: errorMessage },
       { status: 500 }
     );
   }

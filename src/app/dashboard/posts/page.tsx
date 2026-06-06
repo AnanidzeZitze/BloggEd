@@ -2,22 +2,18 @@
 
 import React, { useState } from "react";
 import { 
-  FileText, 
   Plus, 
   Sparkles, 
   Loader2, 
   Check, 
   AlertCircle, 
   Edit3, 
-  Eye, 
   Send, 
   ArrowLeft, 
   Globe, 
   Image as ImageIcon,
-  Save,
-  HelpCircle
+  Save
 } from "lucide-react";
-import Link from "next/link";
 
 interface PostSection {
   heading: string;
@@ -136,9 +132,10 @@ export default function PostsPage() {
       setSuccessMessage("AI Post generated successfully in structured JSON blocks!");
       setTimeout(() => setSuccessMessage(null), 4000);
 
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("[UI Generator] API Route Error:", err);
-      setError(err.message || "An unexpected error occurred during AI generation.");
+      const errorMessage = err instanceof Error ? err.message : "An unexpected error occurred during AI generation.";
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -219,13 +216,6 @@ export default function PostsPage() {
 
     try {
       console.log(`[UI Publisher] Compiling and deploying structured JSON to Google Blogger API...`);
-      
-      const payloadPost: GeneratedPost = {
-        title: editedTitle,
-        subtitle: editedSubtitle,
-        sections: editedSections,
-        image_metaphors: editingPost.content?.image_metaphors || []
-      };
 
       // Call our API with the structured content for compile and post insertion
       const response = await fetch("/api/generate/test", {
@@ -273,9 +263,9 @@ export default function PostsPage() {
         });
       }
 
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("[UI Publisher] Google Blogger Publishing Error:", err);
-      setError(err.message || "Blogger publishing failed. Please check credentials.");
+      setError((err as Error).message || "Blogger publishing failed. Please check credentials.");
     } finally {
       setPublishing(false);
     }

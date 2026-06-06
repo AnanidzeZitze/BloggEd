@@ -51,10 +51,11 @@ export async function GET(req: NextRequest) {
     redirectUrl.searchParams.set("google_connected", "true");
     return NextResponse.redirect(redirectUrl);
 
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("[OAuth Callback] OAuth exchange error:", err);
+    const errorMessage = err instanceof Error ? err.message : String(err);
     return NextResponse.json(
-      { success: false, error: err.message || String(err) },
+      { success: false, error: errorMessage },
       { status: 500 }
     );
   }
