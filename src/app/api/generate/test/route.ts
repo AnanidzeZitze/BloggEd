@@ -295,16 +295,30 @@ async function handleRequest(req: NextRequest) {
     }
   }
 
-  // 2. Initialize Gemini API
-  const geminiApiKey = process.env.GEMINI_API_KEY || "AIzaSyCGUue9QvJbMV9gMyz88xOpTZRx7k6Kly8";
-  if (!geminiApiKey) {
+  // 2. Resolve and Initialize Gemini API (Custom Workspace Key -> Platform Key Fallback)
+  const workspaceId = searchParams.get("workspaceId") || "default_workspace";
+  let activeGeminiKey = process.env.GEMINI_API_KEY || "AIzaSyCGUue9QvJbMV9gMyz88xOpTZRx7k6Kly8";
+
+  try {
+    const workspace = await db.workspace.findUnique({
+      where: { id: workspaceId }
+    });
+    if (workspace && workspace.customGeminiKey) {
+      activeGeminiKey = workspace.customGeminiKey;
+      console.log(`[Next.js Spike]   => Using custom user Gemini API Key from Cloud DB for workspace: ${workspaceId}`);
+    }
+  } catch {
+    // Fallback to default activeGeminiKey if db query fails
+  }
+
+  if (!activeGeminiKey) {
     return NextResponse.json(
-      { error: "Missing GEMINI_API_KEY environment variable" },
+      { error: "Missing GEMINI_API_KEY environment variable or custom workspace key." },
       { status: 500 }
     );
   }
 
-  const ai = new GoogleGenAI({ apiKey: geminiApiKey });
+  const ai = new GoogleGenAI({ apiKey: activeGeminiKey });
 
   // 3. Load Writing Brief context
   const briefPath = path.join(process.cwd(), "../BLOG_BRIEF.md");

@@ -7,6 +7,7 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [brandName, setBrandName] = useState("Signal & Noise");
+  const [customGeminiKey, setCustomGeminiKey] = useState("");
   const [brandContext, setBrandContext] = useState(
     "Target Audience: CMOs, Senior Marketers, Growth Leaders, Analytics Directors.\n" +
     "Tone of Voice: Skeptical of hype, practitioner-focused, slightly contrarian, authoritative but humble, willing to criticize industry vendors when necessary.\n" +
@@ -98,6 +99,22 @@ export default function SettingsPage() {
                 className="w-full bg-[#0a0d18] border border-gray-800 rounded-lg px-3 py-2 text-sm text-gray-500 cursor-not-allowed"
               />
             </div>
+          </div>
+
+          <div className="pt-4 border-t border-gray-800/50 mt-4">
+            <label className="block text-xs text-gray-400 font-semibold mb-1">
+              Custom Gemini API Key (Google AI Studio)
+            </label>
+            <input
+              type="password"
+              placeholder="Paste your private AIzaSy... key to use your own Google Cloud API quota"
+              value={customGeminiKey}
+              onChange={(e) => setCustomGeminiKey(e.target.value)}
+              className="w-full bg-[#161f38] border border-gray-700 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-[#1a73e8] text-white font-mono"
+            />
+            <p className="text-[10px] text-gray-500 mt-1">
+              Leaving this empty falls back to the system&apos;s master API key.
+            </p>
           </div>
         </div>
 

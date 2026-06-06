@@ -17,6 +17,9 @@ model Workspace {
   brandContext       String?    @db.Text
   blogTemplate       String?    @db.Text
   
+  // Custom User Gemini API Key
+  customGeminiKey    String?    @db.Text
+
   // Cloud Google Blogger Credentials
   googleAccessToken  String?    @db.Text
   googleRefreshToken String?    @db.Text
