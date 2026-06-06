@@ -1,0 +1,56 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Workspace {
+  id                 String     @id @default(uuid())
+  name               String
+  slug               String     @unique
+  brandContext       String?    @db.Text
+  blogTemplate       String?    @db.Text
+  
+  // Cloud Google Blogger Credentials
+  googleAccessToken  String?    @db.Text
+  googleRefreshToken String?    @db.Text
+  googleTokenExpiry  DateTime?
+  bloggerBlogId      String?    // Custom Blogger Blog ID per Brand
+
+  campaigns          Campaign[]
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+}
+
+model Campaign {
+  id              String    @id @default(uuid())
+  workspaceId     String
+  workspace       Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name            String
+  description     String?   @db.Text
+  campaignContext String?   @db.Text
+  posts           Post[]
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model Post {
+  id               String    @id @default(uuid())
+  campaignId       String
+  campaign         Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  title            String
+  subtitle         String?   @db.Text
+  postInputContext String?   @db.Text
+  status           String    @default("DRAFT") // DRAFT, SCHEDULED, PUBLISHED
+  content          Json?     // Stored as Structured JSON: {"sections": [...], "image_metaphors": [...]}
+  bloggerUrl       String?
+  bloggerId        String?
+  publishedAt      DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+}
