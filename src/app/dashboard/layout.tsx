@@ -69,7 +69,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex h-screen bg-[#0b0f19] text-gray-100 overflow-hidden font-sans">
       {/* Sidebar */}
-      <aside className="w-64 bg-[#0d1324] border-r border-gray-800 flex flex-col z-10">
+      <aside className="w-64 bg-[#0d1324] border-r border-gray-800 flex flex-col z-10 overflow-hidden">
         {/* Logo */}
         <div className="px-4 pt-4 pb-2">
           <Image src="/BloggEd_Logo.png" alt="BloggEd" height={32} width={107} className="h-8 w-auto" priority />
@@ -135,7 +135,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+        <nav className="flex-1 min-h-0 p-4 space-y-1 overflow-y-auto">
           {navigation.map((item) => {
             const Icon = item.icon;
             const isActive = pathname === item.href || (item.href !== "/dashboard" && pathname?.startsWith(item.href));
