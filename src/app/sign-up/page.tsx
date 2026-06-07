@@ -8,7 +8,7 @@ export default function SignUpPage() {
           <div className="w-9 h-9 rounded-lg bg-[#1a73e8] flex items-center justify-center text-white font-bold shadow-md shadow-[#1a73e8]/20">
             BP
           </div>
-          <span className="text-lg font-bold text-white tracking-tight">Blog Publisher SaaS</span>
+          <span className="text-lg font-bold text-white tracking-tight">BloggEd</span>
         </div>
         
         <SignUp 

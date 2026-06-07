@@ -10,7 +10,7 @@ export default function Home() {
           <div className="w-8 h-8 rounded-lg bg-[#1a73e8] flex items-center justify-center text-white font-bold text-sm shadow-md shadow-[#1a73e8]/20">
             BP
           </div>
-          <span className="font-bold text-white tracking-tight">Blog Publisher SaaS</span>
+          <span className="font-bold text-white tracking-tight">BloggEd</span>
         </div>
         <div className="flex items-center space-x-3">
           <Link
@@ -94,7 +94,7 @@ export default function Home() {
       </section>
 
       <footer className="border-t border-gray-800 px-6 py-5 text-center text-xs text-gray-600">
-        Blog Publisher SaaS &copy; {new Date().getFullYear()}
+        BloggEd &copy; {new Date().getFullYear()}
       </footer>
     </div>
   );

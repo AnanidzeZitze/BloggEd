@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Blog Publisher SaaS",
+  title: "BloggEd",
   description: "Automate and scale your AI marketing campaign drafts directly into Google Blogger.",
 };
 
