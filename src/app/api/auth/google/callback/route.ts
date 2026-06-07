@@ -1,62 +1,68 @@
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import { getOAuth2Client } from "@/lib/google-auth";
 import { db } from "@/lib/db";
+import { encrypt } from "@/lib/encrypt";
 
 export async function GET(req: NextRequest) {
+  const { userId } = await auth();
+  if (!userId) {
+    return NextResponse.redirect(new URL("/sign-in", req.url));
+  }
+
   const { searchParams } = new URL(req.url);
   const code = searchParams.get("code");
-  const workspaceId = searchParams.get("state") || "default_workspace";
+  const rawState = searchParams.get("state");
 
-  if (!code) {
-    return NextResponse.json(
-      { success: false, error: "Missing authorization code" },
-      { status: 400 }
-    );
+  if (!code || !rawState) {
+    return NextResponse.json({ success: false, error: "Missing authorization code or state" }, { status: 400 });
+  }
+
+  // Decode and validate state payload
+  let stateData: { workspaceId: string; userId: string; csrfToken: string };
+  try {
+    stateData = JSON.parse(Buffer.from(rawState, "base64url").toString("utf-8"));
+  } catch {
+    return NextResponse.json({ success: false, error: "Malformed state parameter" }, { status: 400 });
+  }
+
+  // Verify the user in state matches the logged-in user (prevents OAuth token fixation)
+  if (!stateData.userId || stateData.userId !== userId) {
+    return NextResponse.json({ success: false, error: "State user mismatch" }, { status: 403 });
+  }
+
+  // Verify CSRF token from HttpOnly cookie
+  const cookieCsrf = req.cookies.get("oauth_csrf")?.value;
+  if (!cookieCsrf || cookieCsrf !== stateData.csrfToken) {
+    return NextResponse.json({ success: false, error: "CSRF token invalid" }, { status: 403 });
+  }
+
+  // Verify workspace ownership — never create, only update
+  const workspace = await db.workspace.findUnique({ where: { id: stateData.workspaceId } });
+  if (!workspace || workspace.clerkUserId !== userId) {
+    return NextResponse.json({ success: false, error: "Workspace not found or access denied" }, { status: 403 });
   }
 
   try {
     const oauth2Client = getOAuth2Client();
-
-    // Exchange auth code for tokens
     const { tokens } = await oauth2Client.getToken(code);
-    oauth2Client.setCredentials(tokens);
 
-    console.log(`[OAuth Callback] Exchanged tokens successfully for workspace: ${workspaceId}`);
-
-    const tokenExpiry = tokens.expiry_date ? new Date(tokens.expiry_date) : null;
-
-    // Save tokens securely in the cloud database
-    await db.workspace.upsert({
-      where: { id: workspaceId },
-      update: {
-        googleAccessToken: tokens.access_token,
-        // The refresh token is only sent on first consent. We preserve the old one if none returned.
-        googleRefreshToken: tokens.refresh_token || undefined,
-        googleTokenExpiry: tokenExpiry,
+    await db.workspace.update({
+      where: { id: stateData.workspaceId },
+      data: {
+        googleAccessToken: tokens.access_token ? encrypt(tokens.access_token) : undefined,
+        googleRefreshToken: tokens.refresh_token ? encrypt(tokens.refresh_token) : undefined,
+        googleTokenExpiry: tokens.expiry_date ? new Date(tokens.expiry_date) : undefined,
       },
-      create: {
-        id: workspaceId,
-        name: workspaceId === "default_workspace" ? "Signal & Noise (Cloud)" : "Connected Brand Workspace",
-        slug: workspaceId === "default_workspace" ? "signal-noise-cloud" : `brand-${workspaceId.substring(0, 8)}`,
-        googleAccessToken: tokens.access_token,
-        googleRefreshToken: tokens.refresh_token,
-        googleTokenExpiry: tokenExpiry,
-      }
     });
 
-    console.log(`[OAuth Callback] Saved credentials to Workspace model in Cloud DB: ${workspaceId}`);
-
-    // Redirect the user back to the settings panel
     const redirectUrl = new URL("/dashboard/settings", req.url);
     redirectUrl.searchParams.set("google_connected", "true");
-    return NextResponse.redirect(redirectUrl);
-
+    const response = NextResponse.redirect(redirectUrl);
+    response.cookies.delete("oauth_csrf");
+    return response;
   } catch (err: unknown) {
-    console.error("[OAuth Callback] OAuth exchange error:", err);
-    const errorMessage = err instanceof Error ? err.message : String(err);
-    return NextResponse.json(
-      { success: false, error: errorMessage },
-      { status: 500 }
-    );
+    console.error("[OAuth Callback] Token exchange error:", err);
+    return NextResponse.json({ success: false, error: "OAuth exchange failed" }, { status: 500 });
   }
 }

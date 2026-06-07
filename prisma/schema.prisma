@@ -12,6 +12,7 @@ datasource db {
 
 model Workspace {
   id                 String     @id @default(uuid())
+  clerkUserId        String     @default("")
   name               String
   slug               String     @unique
   brandContext       String?    @db.Text
