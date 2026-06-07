@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { UserButton, useUser } from "@clerk/nextjs";
+import { UserButton, useUser, useClerk } from "@clerk/nextjs";
 import {
   LayoutDashboard,
   Settings,
@@ -15,6 +15,7 @@ import {
   Globe,
   Sparkles,
   Loader2,
+  LogOut,
 } from "lucide-react";
 import { WorkspaceProvider, useWorkspace } from "@/lib/workspace-context";
 import { FirstWorkspace } from "@/components/onboarding/FirstWorkspace";
@@ -23,6 +24,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { user } = useUser();
+  const { signOut } = useClerk();
   const { workspaces, activeWorkspaceId, activeWorkspace, setActiveWorkspaceId, reload, loading } = useWorkspace();
   const [isSwitcherOpen, setIsSwitcherOpen] = useState(false);
   const [showAddBrandModal, setShowAddBrandModal] = useState(false);
@@ -155,21 +157,30 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         </nav>
 
         {/* Footer */}
-        <div className="p-4 border-t border-gray-800 flex items-center justify-between bg-[#0a0e1c]">
-          <div className="flex items-center space-x-3">
-            <UserButton />
-            <div>
-              <p className="text-xs font-semibold text-gray-200 truncate w-28">
-                {user?.fullName || user?.username || user?.primaryEmailAddress?.emailAddress || "User"}
-              </p>
-              <p className="text-[10px] text-gray-400 truncate w-28">
-                {user?.primaryEmailAddress?.emailAddress || ""}
-              </p>
+        <div className="p-4 border-t border-gray-800 bg-[#0a0e1c] space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3 min-w-0">
+              <UserButton />
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-gray-200 truncate w-28">
+                  {user?.fullName || user?.username || user?.primaryEmailAddress?.emailAddress || "User"}
+                </p>
+                <p className="text-[10px] text-gray-400 truncate w-28">
+                  {user?.primaryEmailAddress?.emailAddress || ""}
+                </p>
+              </div>
             </div>
+            <Link href="/dashboard/settings" title="Workspace Settings">
+              <Settings className="w-4 h-4 text-gray-400 hover:text-white transition-colors" />
+            </Link>
           </div>
-          <Link href="/dashboard/settings" title="Workspace Settings">
-            <Settings className="w-4 h-4 text-gray-400 hover:text-white transition-colors" />
-          </Link>
+          <button
+            onClick={() => signOut({ redirectUrl: "/" })}
+            className="w-full flex items-center justify-center space-x-2 text-xs text-gray-400 hover:text-red-400 hover:bg-red-400/10 transition-colors rounded-md py-1.5 px-2"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span>Sign out</span>
+          </button>
         </div>
       </aside>
 
