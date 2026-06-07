@@ -16,6 +16,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "BloggEd",
   description: "Automate and scale your AI marketing campaign drafts directly into Google Blogger.",
+  icons: { icon: "/BloggEd_Logo.png" },
 };
 
 export default function RootLayout({

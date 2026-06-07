@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { Sparkles, Globe, FolderKanban, Zap } from "lucide-react";
 
 export default function Home() {
@@ -6,12 +7,7 @@ export default function Home() {
     <div className="min-h-screen bg-[#0b0f19] text-gray-100 flex flex-col">
       {/* Nav */}
       <header className="border-b border-gray-800 px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center space-x-2.5">
-          <div className="w-8 h-8 rounded-lg bg-[#1a73e8] flex items-center justify-center text-white font-bold text-sm shadow-md shadow-[#1a73e8]/20">
-            BP
-          </div>
-          <span className="font-bold text-white tracking-tight">BloggEd</span>
-        </div>
+        <Image src="/BloggEd_Logo.png" alt="BloggEd" height={36} width={120} className="h-9 w-auto" priority />
         <div className="flex items-center space-x-3">
           <Link
             href="/sign-in"

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { UserButton, useUser } from "@clerk/nextjs";
@@ -67,6 +68,10 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     <div className="flex h-screen bg-[#0b0f19] text-gray-100 overflow-hidden font-sans">
       {/* Sidebar */}
       <aside className="w-64 bg-[#0d1324] border-r border-gray-800 flex flex-col z-10">
+        {/* Logo */}
+        <div className="px-4 pt-4 pb-2">
+          <Image src="/BloggEd_Logo.png" alt="BloggEd" height={32} width={107} className="h-8 w-auto" priority />
+        </div>
         {/* Brand Switcher */}
         <div className="p-4 border-b border-gray-800 relative">
           <button
