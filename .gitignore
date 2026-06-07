@@ -45,3 +45,9 @@ next-env.d.ts
 # Google OAuth Credentials & Sessions
 client_secret.json
 blogger_token.json
+
+# Vitest coverage output
+/lcov.info
+
+# OS
+Thumbs.db
