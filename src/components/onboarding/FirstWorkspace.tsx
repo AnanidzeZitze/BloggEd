@@ -40,8 +40,8 @@ export function FirstWorkspace() {
     <div className="flex items-center justify-center min-h-full">
       <div className="max-w-md w-full text-center space-y-8 px-4">
         <div className="space-y-3">
-          <div className="w-14 h-14 rounded-2xl bg-[#1a73e8]/10 border border-[#1a73e8]/20 flex items-center justify-center mx-auto">
-            <Sparkles className="w-7 h-7 text-[#1a73e8]" />
+          <div className="w-14 h-14 rounded-2xl bg-[var(--accent)]/10 border border-[var(--accent)]/20 flex items-center justify-center mx-auto">
+            <Sparkles className="w-7 h-7 text-[var(--accent)]" />
           </div>
           <h1 className="text-2xl font-bold text-white">Welcome to Blogger Auto</h1>
           <p className="text-sm text-gray-400">
@@ -63,13 +63,13 @@ export function FirstWorkspace() {
               placeholder="e.g. Signal & Noise"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full bg-[#161f38] border border-gray-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-[#1a73e8] text-white"
+              className="w-full bg-[var(--bg-elevated)] border border-gray-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-[var(--accent)] text-white"
             />
           </div>
           <button
             type="submit"
             disabled={creating}
-            className="w-full flex items-center justify-center bg-[#1a73e8] hover:bg-[#155fc0] disabled:opacity-60 text-white font-semibold px-4 py-3 rounded-lg shadow-md transition-colors"
+            className="w-full flex items-center justify-center bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-60 text-white font-semibold px-4 py-3 rounded-lg shadow-md transition-colors"
           >
             {creating ? (
               <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Creating…</>

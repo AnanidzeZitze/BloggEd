@@ -1,26 +1,72 @@
 @import "tailwindcss";
 
+/* ── Theme tokens ─────────────────────────────────────────────────────────── */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Light mode defaults */
+  --bg-base:       #f0f4f8;
+  --bg-surface:    #ffffff;
+  --bg-elevated:   #f1f5f9;
+  --bg-overlay:    #ffffff;
+  --bg-deep:       #e8edf3;
+  --bg-highlight:  #e2e8f0;
+  --bg-hover:      #dde4ed;
+
+  --accent:        #ea580c;
+  --accent-hover:  #c2410c;
+  --accent-subtle: rgba(234, 88, 12, 0.12);
+  --accent-shadow: rgba(234, 88, 12, 0.25);
+  --accent-light:  #fb923c;
+
+  color-scheme: light;
+}
+
+html.dark {
+  --bg-base:       #0b0f19;
+  --bg-surface:    #0d1324;
+  --bg-elevated:   #161f38;
+  --bg-overlay:    #11192e;
+  --bg-deep:       #0a0e1c;
+  --bg-highlight:  #1a233d;
+  --bg-hover:      #1f2b4e;
+
+  --accent:        #f97316;
+  --accent-hover:  #ea580c;
+  --accent-subtle: rgba(249, 115, 22, 0.12);
+  --accent-shadow: rgba(249, 115, 22, 0.25);
+  --accent-light:  #fdba74;
+
+  color-scheme: dark;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+body {
+  font-family: var(--font-geist-sans, Arial, sans-serif);
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* ── Light mode: text overrides ───────────────────────────────────────────── */
+html:not(.dark) .text-white          { color: #0f172a; }
+html:not(.dark) .text-gray-100       { color: #1e293b; }
+html:not(.dark) .text-gray-200       { color: #334155; }
+html:not(.dark) .text-gray-300       { color: #475569; }
+html:not(.dark) .text-gray-400       { color: #64748b; }
+html:not(.dark) .text-gray-500       { color: #94a3b8; }
+html:not(.dark) .text-gray-600       { color: #94a3b8; }
+
+/* ── Light mode: border overrides ─────────────────────────────────────────── */
+html:not(.dark) .border-gray-800     { border-color: #e2e8f0; }
+html:not(.dark) .border-gray-700     { border-color: #cbd5e1; }
+html:not(.dark) .border-t.border-gray-800 { border-color: #e2e8f0; }
+
+/* ── Light mode: input / form fields ─────────────────────────────────────── */
+html:not(.dark) input,
+html:not(.dark) textarea,
+html:not(.dark) select {
+  color: #0f172a;
+  border-color: #cbd5e1;
 }
+html:not(.dark) input::placeholder,
+html:not(.dark) textarea::placeholder { color: #94a3b8; }

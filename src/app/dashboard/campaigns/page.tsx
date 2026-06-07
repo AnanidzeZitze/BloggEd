@@ -90,7 +90,7 @@ export default function CampaignsPage() {
         <button
           onClick={() => setShowModal(true)}
           disabled={!activeWorkspaceId}
-          className="flex items-center bg-[#1a73e8] hover:bg-[#155fc0] text-white text-xs font-semibold px-4 py-2.5 rounded-lg shadow-md transition-colors disabled:opacity-50"
+          className="flex items-center bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-xs font-semibold px-4 py-2.5 rounded-lg shadow-md transition-colors disabled:opacity-50"
         >
           <Plus className="w-4 h-4 mr-1.5" />
           Create Series
@@ -117,10 +117,10 @@ export default function CampaignsPage() {
       {!loadingList && campaigns.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {campaigns.map((camp) => (
-            <div key={camp.id} className="p-5 rounded-xl bg-[#0d1324] border border-gray-800 flex flex-col justify-between hover:border-gray-700 transition-all shadow-sm space-y-4">
+            <div key={camp.id} className="p-5 rounded-xl bg-[var(--bg-surface)] border border-gray-800 flex flex-col justify-between hover:border-gray-700 transition-all shadow-sm space-y-4">
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <div className="w-8 h-8 rounded-lg bg-[#1a73e8]/10 text-[#1a73e8] flex items-center justify-center">
+                  <div className="w-8 h-8 rounded-lg bg-[var(--accent)]/10 text-[var(--accent)] flex items-center justify-center">
                     <FolderKanban className="w-4 h-4" />
                   </div>
                   <span className="text-[10px] text-gray-500 flex items-center">
@@ -135,7 +135,7 @@ export default function CampaignsPage() {
                 )}
 
                 {camp.campaignContext && (
-                  <div className="p-2 rounded bg-[#11192e] border border-gray-800 text-[10px] text-gray-400 leading-relaxed italic line-clamp-3">
+                  <div className="p-2 rounded bg-[var(--bg-overlay)] border border-gray-800 text-[10px] text-gray-400 leading-relaxed italic line-clamp-3">
                     <strong className="not-italic text-gray-300">Context: </strong>{camp.campaignContext}
                   </div>
                 )}
@@ -162,9 +162,9 @@ export default function CampaignsPage() {
       {/* Create Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#11192e] border border-gray-700 rounded-xl max-w-md w-full p-6 shadow-2xl">
+          <div className="bg-[var(--bg-overlay)] border border-gray-700 rounded-xl max-w-md w-full p-6 shadow-2xl">
             <h3 className="text-lg font-bold text-white mb-2 flex items-center">
-              <FolderKanban className="w-5 h-5 text-[#1a73e8] mr-2" />
+              <FolderKanban className="w-5 h-5 text-[var(--accent)] mr-2" />
               Create Blog Series
             </h3>
             <p className="text-xs text-gray-400 mb-4">
@@ -182,7 +182,7 @@ export default function CampaignsPage() {
                   placeholder="e.g. The Honest MarTech Audit"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full bg-[#161f38] border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#1a73e8] text-white"
+                  className="w-full bg-[var(--bg-elevated)] border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[var(--accent)] text-white"
                 />
               </div>
 
@@ -193,7 +193,7 @@ export default function CampaignsPage() {
                   placeholder="e.g. Tool-by-tool honest assessment of what works vs. hype."
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  className="w-full bg-[#161f38] border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#1a73e8] text-white"
+                  className="w-full bg-[var(--bg-elevated)] border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[var(--accent)] text-white"
                 />
               </div>
 
@@ -204,7 +204,7 @@ export default function CampaignsPage() {
                   placeholder="e.g. Focus on evaluating HubSpot, Salesforce. Highlight when to buy vs. when to move on."
                   value={campaignContext}
                   onChange={(e) => setCampaignContext(e.target.value)}
-                  className="w-full bg-[#161f38] border border-gray-700 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-[#1a73e8] text-white resize-none"
+                  className="w-full bg-[var(--bg-elevated)] border border-gray-700 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-[var(--accent)] text-white resize-none"
                 />
               </div>
 
@@ -219,7 +219,7 @@ export default function CampaignsPage() {
                 <button
                   type="submit"
                   disabled={creating}
-                  className="px-4 py-2 rounded-lg bg-[#1a73e8] text-white text-xs hover:bg-[#155fc0] transition-colors font-semibold disabled:opacity-60 flex items-center"
+                  className="px-4 py-2 rounded-lg bg-[var(--accent)] text-white text-xs hover:bg-[var(--accent-hover)] transition-colors font-semibold disabled:opacity-60 flex items-center"
                 >
                   {creating && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}
                   Create Campaign

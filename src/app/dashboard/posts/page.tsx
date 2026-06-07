@@ -372,7 +372,7 @@ export default function PostsPage() {
             <button
               onClick={() => { setView("generator"); setGlobalError(null); }}
               disabled={!activeWorkspaceId}
-              className="flex items-center bg-[#1a73e8] hover:bg-[#155fc0] text-white text-xs font-semibold px-4 py-2.5 rounded-lg shadow-md transition-colors disabled:opacity-50"
+              className="flex items-center bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-xs font-semibold px-4 py-2.5 rounded-lg shadow-md transition-colors disabled:opacity-50"
             >
               <Plus className="w-4 h-4 mr-1.5" />
               New AI Post
@@ -390,8 +390,8 @@ export default function PostsPage() {
               <Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading posts…
             </div>
           ) : (
-            <div className="bg-[#0d1324] border border-gray-800 rounded-xl overflow-hidden shadow-sm">
-              <div className="p-4 border-b border-gray-800 flex items-center justify-between bg-[#0a0e1c]">
+            <div className="bg-[var(--bg-surface)] border border-gray-800 rounded-xl overflow-hidden shadow-sm">
+              <div className="p-4 border-b border-gray-800 flex items-center justify-between bg-[var(--bg-deep)]">
                 <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Title & Series</span>
                 <span className="text-xs font-bold text-gray-400 uppercase tracking-wider text-right pr-6">Status</span>
               </div>
@@ -400,7 +400,7 @@ export default function PostsPage() {
               ) : (
                 <div className="divide-y divide-gray-800">
                   {posts.map((post) => (
-                    <div key={post.id} className="p-4 hover:bg-[#121a30] transition-colors flex items-center justify-between">
+                    <div key={post.id} className="p-4 hover:bg-[var(--bg-elevated)] transition-colors flex items-center justify-between">
                       <div className="space-y-1 truncate pr-4">
                         <p className="text-sm font-semibold text-gray-200 truncate max-w-xl">{post.title}</p>
                         <div className="flex items-center text-[10px] text-gray-500 space-x-2">
@@ -415,7 +415,7 @@ export default function PostsPage() {
                         </span>
                         <button
                           onClick={() => loadIntoEditor(post)}
-                          className="p-1.5 rounded bg-gray-800 hover:bg-[#1a73e8] text-gray-400 hover:text-white transition-colors"
+                          className="p-1.5 rounded bg-gray-800 hover:bg-[var(--accent)] text-gray-400 hover:text-white transition-colors"
                           title="Open Editor"
                         >
                           <Edit3 className="w-3.5 h-3.5" />
@@ -458,7 +458,7 @@ export default function PostsPage() {
             <h1 className="text-xl font-bold text-white">Generate AI Blog Post</h1>
           </div>
 
-          <div className="p-6 rounded-xl bg-[#0d1324] border border-gray-800 shadow-lg">
+          <div className="p-6 rounded-xl bg-[var(--bg-surface)] border border-gray-800 shadow-lg">
             <form onSubmit={handleGenerate} className="space-y-5">
               <div>
                 <label className="block text-xs text-gray-400 font-semibold mb-1">Campaign Series</label>
@@ -468,7 +468,7 @@ export default function PostsPage() {
                   <select
                     value={selectedCampaignId}
                     onChange={(e) => setSelectedCampaignId(e.target.value)}
-                    className="w-full bg-[#161f38] border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#1a73e8] text-white"
+                    className="w-full bg-[var(--bg-elevated)] border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[var(--accent)] text-white"
                   >
                     {campaigns.map((c) => (
                       <option key={c.id} value={c.id}>{c.name}</option>
@@ -485,7 +485,7 @@ export default function PostsPage() {
                   placeholder="e.g. Google's AI Bet Is Bigger Than Search: What Marketers Keep Missing"
                   value={topic}
                   onChange={(e) => setTopic(e.target.value)}
-                  className="w-full bg-[#161f38] border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#1a73e8] text-white"
+                  className="w-full bg-[var(--bg-elevated)] border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[var(--accent)] text-white"
                 />
               </div>
 
@@ -500,7 +500,7 @@ export default function PostsPage() {
                   placeholder="Paste industry announcements, stats, or notes you want woven into the article…"
                   value={postInputContext}
                   onChange={(e) => setPostInputContext(e.target.value)}
-                  className="w-full bg-[#161f38] border border-gray-700 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-[#1a73e8] text-white leading-relaxed resize-none"
+                  className="w-full bg-[var(--bg-elevated)] border border-gray-700 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-[var(--accent)] text-white leading-relaxed resize-none"
                 />
               </div>
 
@@ -518,7 +518,7 @@ export default function PostsPage() {
                 <button
                   type="submit"
                   disabled={generating || campaigns.length === 0}
-                  className="flex items-center bg-[#1a73e8] hover:bg-[#155fc0] disabled:opacity-50 text-white text-xs font-semibold px-4 py-2.5 rounded-lg shadow-md transition-colors"
+                  className="flex items-center bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-white text-xs font-semibold px-4 py-2.5 rounded-lg shadow-md transition-colors"
                 >
                   {generating ? (
                     <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Generating… (30–60s)</>
@@ -563,7 +563,7 @@ export default function PostsPage() {
               <button
                 onClick={handlePublish}
                 disabled={publishing}
-                className="flex items-center bg-[#1a73e8] hover:bg-[#155fc0] disabled:opacity-50 text-white text-xs font-semibold px-3.5 py-2 rounded-lg shadow-md transition-colors"
+                className="flex items-center bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-white text-xs font-semibold px-3.5 py-2 rounded-lg shadow-md transition-colors"
               >
                 {publishing ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Send className="w-3.5 h-3.5 mr-1.5" />}
                 Publish Draft
@@ -572,14 +572,14 @@ export default function PostsPage() {
           </div>
 
           {/* Schedule bar */}
-          <div className="flex items-center space-x-2 p-3 rounded-lg bg-[#0d1324] border border-gray-800">
+          <div className="flex items-center space-x-2 p-3 rounded-lg bg-[var(--bg-surface)] border border-gray-800">
             <Calendar className="w-4 h-4 text-purple-400 flex-shrink-0" />
             <span className="text-xs text-gray-400 font-semibold whitespace-nowrap">Schedule publish:</span>
             <input
               type="datetime-local"
               value={scheduleAt}
               onChange={(e) => setScheduleAt(e.target.value)}
-              className="flex-1 bg-[#161f38] border border-gray-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-purple-500"
+              className="flex-1 bg-[var(--bg-elevated)] border border-gray-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-purple-500"
             />
             <button
               onClick={handleSchedule}
@@ -606,14 +606,14 @@ export default function PostsPage() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Left 2 cols: editor */}
             <div className="lg:col-span-2 space-y-6">
-              <div className="p-5 rounded-xl bg-[#0d1324] border border-gray-800 space-y-4">
+              <div className="p-5 rounded-xl bg-[var(--bg-surface)] border border-gray-800 space-y-4">
                 <div>
                   <label className="block text-[10px] text-gray-500 uppercase tracking-wider font-bold mb-1">Post Title</label>
                   <input
                     type="text"
                     value={editedTitle}
                     onChange={(e) => setEditedTitle(e.target.value)}
-                    className="w-full bg-[#161f38] border border-gray-700 rounded-lg px-3 py-2 text-sm font-semibold text-white focus:outline-none focus:border-[#1a73e8]"
+                    className="w-full bg-[var(--bg-elevated)] border border-gray-700 rounded-lg px-3 py-2 text-sm font-semibold text-white focus:outline-none focus:border-[var(--accent)]"
                   />
                 </div>
                 <div>
@@ -622,7 +622,7 @@ export default function PostsPage() {
                     type="text"
                     value={editedSubtitle}
                     onChange={(e) => setEditedSubtitle(e.target.value)}
-                    className="w-full bg-[#161f38] border border-gray-700 rounded-lg px-3 py-2 text-xs text-gray-300 focus:outline-none focus:border-[#1a73e8]"
+                    className="w-full bg-[var(--bg-elevated)] border border-gray-700 rounded-lg px-3 py-2 text-xs text-gray-300 focus:outline-none focus:border-[var(--accent)]"
                   />
                 </div>
               </div>
@@ -630,7 +630,7 @@ export default function PostsPage() {
               <div className="space-y-4">
                 <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Content Blocks</h3>
                 {editedSections.map((section, secIndex) => (
-                  <div key={secIndex} className="p-5 rounded-xl bg-[#0d1324] border border-gray-800 space-y-4">
+                  <div key={secIndex} className="p-5 rounded-xl bg-[var(--bg-surface)] border border-gray-800 space-y-4">
                     <div>
                       <label className="block text-[10px] text-gray-500 uppercase tracking-wider font-bold mb-1">
                         Section Heading {secIndex + 1}
@@ -639,7 +639,7 @@ export default function PostsPage() {
                         type="text"
                         value={section.heading}
                         onChange={(e) => handleSectionHeadingChange(secIndex, e.target.value)}
-                        className="w-full bg-[#161f38] border border-gray-700 rounded-lg px-3 py-2 text-sm font-semibold text-white focus:outline-none focus:border-[#1a73e8]"
+                        className="w-full bg-[var(--bg-elevated)] border border-gray-700 rounded-lg px-3 py-2 text-sm font-semibold text-white focus:outline-none focus:border-[var(--accent)]"
                       />
                     </div>
                     <div className="space-y-3">
@@ -650,14 +650,14 @@ export default function PostsPage() {
                           rows={3}
                           value={para}
                           onChange={(e) => handleParagraphChange(secIndex, paraIndex, e.target.value)}
-                          className="w-full bg-[#161f38] border border-gray-700 rounded-lg px-3 py-2 text-xs text-gray-300 focus:outline-none focus:border-[#1a73e8] leading-relaxed resize-none"
+                          className="w-full bg-[var(--bg-elevated)] border border-gray-700 rounded-lg px-3 py-2 text-xs text-gray-300 focus:outline-none focus:border-[var(--accent)] leading-relaxed resize-none"
                         />
                       ))}
                     </div>
                     <div className="flex justify-end pt-1">
                       <button
                         onClick={() => handleAddParagraph(secIndex)}
-                        className="text-[10px] text-[#1a73e8] hover:text-[#155fc0] font-semibold flex items-center transition-colors"
+                        className="text-[10px] text-[var(--accent)] hover:text-[var(--accent-hover)] font-semibold flex items-center transition-colors"
                       >
                         <Plus className="w-3 h-3 mr-1" /> Add Paragraph
                       </button>
@@ -668,7 +668,7 @@ export default function PostsPage() {
 
               <button
                 onClick={handleAddSection}
-                className="w-full py-3 rounded-xl border border-dashed border-gray-800 hover:border-gray-600 bg-[#0d1324]/30 text-gray-400 hover:text-white transition-colors flex items-center justify-center text-xs font-semibold"
+                className="w-full py-3 rounded-xl border border-dashed border-gray-800 hover:border-gray-600 bg-[var(--bg-surface)]/30 text-gray-400 hover:text-white transition-colors flex items-center justify-center text-xs font-semibold"
               >
                 <Plus className="w-4 h-4 mr-1.5" /> Add Section
               </button>
@@ -679,7 +679,7 @@ export default function PostsPage() {
               <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">AI Image Metaphors</h3>
               {editingPost.content?.image_metaphors?.length ? (
                 editingPost.content.image_metaphors.map((meta, i) => (
-                  <div key={i} className="p-4 rounded-xl bg-[#0d1324] border border-gray-800 space-y-3 shadow-sm">
+                  <div key={i} className="p-4 rounded-xl bg-[var(--bg-surface)] border border-gray-800 space-y-3 shadow-sm">
                     <div className="flex items-center justify-between text-xs">
                       <span className="font-bold text-gray-300 flex items-center">
                         <ImageIcon className="w-3.5 h-3.5 mr-1.5 text-blue-500" />
@@ -692,18 +692,18 @@ export default function PostsPage() {
                         <img src={meta.url} alt="AI illustration" className="w-full h-full object-cover" />
                       </div>
                     ) : (
-                      <div className="rounded-lg border border-dashed border-gray-800 bg-[#11192e] py-8 text-center text-gray-500 text-xs flex flex-col items-center space-y-1">
+                      <div className="rounded-lg border border-dashed border-gray-800 bg-[var(--bg-overlay)] py-8 text-center text-gray-500 text-xs flex flex-col items-center space-y-1">
                         <ImageIcon className="w-5 h-5 text-gray-600 mb-1" />
                         <span className="font-semibold text-gray-400">No image generated</span>
                       </div>
                     )}
-                    <div className="p-2.5 rounded bg-[#11192e] border border-gray-800 text-[10px] text-gray-400 leading-normal italic">
+                    <div className="p-2.5 rounded bg-[var(--bg-overlay)] border border-gray-800 text-[10px] text-gray-400 leading-normal italic">
                       <strong>Scene: </strong>{meta.scene_description}
                     </div>
                   </div>
                 ))
               ) : (
-                <div className="p-4 rounded-xl bg-[#0d1324] border border-gray-800 text-center text-gray-500 text-xs py-8">
+                <div className="p-4 rounded-xl bg-[var(--bg-surface)] border border-gray-800 text-center text-gray-500 text-xs py-8">
                   No visual assets.
                 </div>
               )}

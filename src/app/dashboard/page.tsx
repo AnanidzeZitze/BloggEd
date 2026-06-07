@@ -81,7 +81,7 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       {/* Welcome Banner */}
-      <div className="p-6 rounded-xl bg-gradient-to-r from-[#111c3a] to-[#0f1424] border border-gray-800 flex items-center justify-between shadow-lg">
+      <div className="p-6 rounded-xl bg-gradient-to-r from-[var(--bg-elevated)] to-[var(--bg-base)] border border-gray-800 flex items-center justify-between shadow-lg">
         <div className="space-y-1.5">
           <h1 className="text-xl font-bold text-white flex items-center">
             Welcome back to the Cockpit!
@@ -119,7 +119,7 @@ export default function DashboardPage() {
             {statCards.map((stat) => {
               const Icon = stat.icon;
               return (
-                <div key={stat.name} className="p-4 rounded-xl bg-[#0d1324] border border-gray-800 flex items-center justify-between shadow-sm">
+                <div key={stat.name} className="p-4 rounded-xl bg-[var(--bg-surface)] border border-gray-800 flex items-center justify-between shadow-sm">
                   <div className="space-y-1">
                     <p className="text-xs text-gray-500 font-medium">{stat.name}</p>
                     <p className="text-2xl font-bold text-white">{stat.value}</p>
@@ -138,19 +138,19 @@ export default function DashboardPage() {
             <div className="lg:col-span-2 space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-sm font-bold uppercase tracking-wider text-gray-400">Recent Blog Operations</h2>
-                <Link href="/dashboard/posts" className="text-xs text-[#1a73e8] hover:text-[#155fc0] flex items-center font-semibold transition-colors">
+                <Link href="/dashboard/posts" className="text-xs text-[var(--accent)] hover:text-[var(--accent-hover)] flex items-center font-semibold transition-colors">
                   View All Posts
                   <ArrowRight className="w-3.5 h-3.5 ml-1" />
                 </Link>
               </div>
 
-              <div className="bg-[#0d1324] border border-gray-800 rounded-xl overflow-hidden shadow-sm">
+              <div className="bg-[var(--bg-surface)] border border-gray-800 rounded-xl overflow-hidden shadow-sm">
                 {stats.recentPosts.length === 0 ? (
                   <p className="text-xs text-gray-500 p-6 text-center">No posts yet. Generate your first post.</p>
                 ) : (
                   <div className="divide-y divide-gray-800">
                     {stats.recentPosts.map((post) => (
-                      <div key={post.id} className="p-4 hover:bg-[#121a30] transition-colors flex items-center justify-between">
+                      <div key={post.id} className="p-4 hover:bg-[var(--bg-elevated)] transition-colors flex items-center justify-between">
                         <div className="space-y-1 truncate pr-4">
                           <p className="text-xs font-semibold text-gray-200 truncate">{post.title}</p>
                           <div className="flex items-center text-[10px] text-gray-500 space-x-2">
@@ -181,12 +181,12 @@ export default function DashboardPage() {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-sm font-bold uppercase tracking-wider text-gray-400">Campaign Trackers</h2>
-                <Link href="/dashboard/campaigns" className="text-xs text-[#1a73e8] hover:text-[#155fc0] flex items-center font-semibold transition-colors">
+                <Link href="/dashboard/campaigns" className="text-xs text-[var(--accent)] hover:text-[var(--accent-hover)] flex items-center font-semibold transition-colors">
                   Manage
                 </Link>
               </div>
 
-              <div className="p-4 bg-[#0d1324] border border-gray-800 rounded-xl space-y-4 shadow-sm">
+              <div className="p-4 bg-[var(--bg-surface)] border border-gray-800 rounded-xl space-y-4 shadow-sm">
                 {stats.campaignProgress.length === 0 ? (
                   <p className="text-xs text-gray-500 text-center py-2">No campaigns yet.</p>
                 ) : (

@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { Sparkles, Save, BookOpen, User, Check, Loader2, Link as LinkIcon } from "lucide-react";
+import { Sparkles, Save, BookOpen, User, Check, Loader2, Link as LinkIcon, Sun, Moon } from "lucide-react";
+import { useTheme } from "next-themes";
 import { useWorkspace } from "@/lib/workspace-context";
 
 const DEFAULT_BRAND_CONTEXT =
@@ -28,6 +29,7 @@ const DEFAULT_BLOG_TEMPLATE =
   "- No trailing 'ensuring' clauses.";
 
 export default function SettingsPage() {
+  const { theme, setTheme } = useTheme();
   const { activeWorkspaceId, activeWorkspace, reload } = useWorkspace();
   const [fetchLoading, setFetchLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -139,12 +141,46 @@ export default function SettingsPage() {
         <div className="text-sm text-red-400 bg-red-900/20 px-4 py-3 rounded-lg border border-red-800">{error}</div>
       )}
 
+      {/* Appearance */}
+      <div className="p-6 rounded-xl bg-[var(--bg-surface)] border border-gray-800">
+        <h2 className="text-sm font-bold text-white uppercase tracking-wider mb-4 flex items-center">
+          {theme === "dark" ? <Moon className="w-4 h-4 mr-2 text-[var(--accent)]" /> : <Sun className="w-4 h-4 mr-2 text-[var(--accent)]" />}
+          Appearance
+        </h2>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setTheme("light")}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold border transition-colors ${
+              theme === "light"
+                ? "bg-[var(--accent)] border-[var(--accent)] text-white"
+                : "bg-[var(--bg-elevated)] border-gray-700 text-gray-400 hover:text-white hover:border-gray-500"
+            }`}
+          >
+            <Sun className="w-4 h-4" />
+            Light
+          </button>
+          <button
+            type="button"
+            onClick={() => setTheme("dark")}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold border transition-colors ${
+              theme === "dark"
+                ? "bg-[var(--accent)] border-[var(--accent)] text-white"
+                : "bg-[var(--bg-elevated)] border-gray-700 text-gray-400 hover:text-white hover:border-gray-500"
+            }`}
+          >
+            <Moon className="w-4 h-4" />
+            Dark
+          </button>
+        </div>
+      </div>
+
       {!fetchLoading && (
         <form onSubmit={handleSave} className="space-y-6">
           {/* Brand Meta */}
-          <div className="p-6 rounded-xl bg-[#0d1324] border border-gray-800 space-y-4">
+          <div className="p-6 rounded-xl bg-[var(--bg-surface)] border border-gray-800 space-y-4">
             <h2 className="text-sm font-bold text-white uppercase tracking-wider flex items-center">
-              <User className="w-4 h-4 mr-2 text-[#1a73e8]" />
+              <User className="w-4 h-4 mr-2 text-[var(--accent)]" />
               Brand Profile
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -155,7 +191,7 @@ export default function SettingsPage() {
                   required
                   value={brandName}
                   onChange={(e) => setBrandName(e.target.value)}
-                  className="w-full bg-[#161f38] border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#1a73e8] text-white"
+                  className="w-full bg-[var(--bg-elevated)] border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[var(--accent)] text-white"
                 />
               </div>
               <div>
@@ -165,7 +201,7 @@ export default function SettingsPage() {
                   placeholder="e.g. 5387823041396511011"
                   value={bloggerBlogId}
                   onChange={(e) => setBloggerBlogId(e.target.value)}
-                  className="w-full bg-[#161f38] border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#1a73e8] text-white font-mono"
+                  className="w-full bg-[var(--bg-elevated)] border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[var(--accent)] text-white font-mono"
                 />
               </div>
             </div>
@@ -185,7 +221,7 @@ export default function SettingsPage() {
                   className={`flex items-center text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${
                     hasGoogleToken
                       ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/20"
-                      : "bg-[#1a73e8] text-white hover:bg-[#155fc0]"
+                      : "bg-[var(--accent)] text-white hover:bg-[var(--accent-hover)]"
                   }`}
                 >
                   {hasGoogleToken ? (
@@ -210,7 +246,7 @@ export default function SettingsPage() {
                 placeholder={activeWorkspace?.hasCustomGeminiKey ? "••••••••••••••••" : "Paste your AIzaSy… key"}
                 value={customGeminiKey}
                 onChange={(e) => setCustomGeminiKey(e.target.value)}
-                className="w-full bg-[#161f38] border border-gray-700 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-[#1a73e8] text-white font-mono"
+                className="w-full bg-[var(--bg-elevated)] border border-gray-700 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-[var(--accent)] text-white font-mono"
               />
               <p className="text-[10px] text-gray-500 mt-1">
                 Leaving this empty keeps the existing key. Set to a space to clear it.
@@ -219,7 +255,7 @@ export default function SettingsPage() {
           </div>
 
           {/* Brand Context */}
-          <div className="p-6 rounded-xl bg-[#0d1324] border border-gray-800 space-y-4">
+          <div className="p-6 rounded-xl bg-[var(--bg-surface)] border border-gray-800 space-y-4">
             <h2 className="text-sm font-bold text-white uppercase tracking-wider flex items-center">
               <Sparkles className="w-4 h-4 mr-2 text-amber-500" />
               Custom Brand Context
@@ -232,12 +268,12 @@ export default function SettingsPage() {
               required
               value={brandContext}
               onChange={(e) => setBrandContext(e.target.value)}
-              className="w-full bg-[#161f38] border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#1a73e8] text-white font-mono leading-relaxed"
+              className="w-full bg-[var(--bg-elevated)] border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[var(--accent)] text-white font-mono leading-relaxed"
             />
           </div>
 
           {/* Writing brief */}
-          <div className="p-6 rounded-xl bg-[#0d1324] border border-gray-800 space-y-4">
+          <div className="p-6 rounded-xl bg-[var(--bg-surface)] border border-gray-800 space-y-4">
             <h2 className="text-sm font-bold text-white uppercase tracking-wider flex items-center">
               <BookOpen className="w-4 h-4 mr-2 text-[#9c27b0]" />
               Writing Template & Anti-Slop Rules
@@ -250,7 +286,7 @@ export default function SettingsPage() {
               required
               value={blogTemplate}
               onChange={(e) => setBlogTemplate(e.target.value)}
-              className="w-full bg-[#161f38] border border-gray-700 rounded-lg p-4 text-sm focus:outline-none focus:border-[#1a73e8] text-white font-mono leading-relaxed"
+              className="w-full bg-[var(--bg-elevated)] border border-gray-700 rounded-lg p-4 text-sm focus:outline-none focus:border-[var(--accent)] text-white font-mono leading-relaxed"
             />
           </div>
 
@@ -259,7 +295,7 @@ export default function SettingsPage() {
             <button
               type="submit"
               disabled={saving}
-              className="flex items-center bg-[#1a73e8] hover:bg-[#155fc0] disabled:opacity-60 text-white text-sm font-semibold px-4 py-2.5 rounded-lg shadow-md transition-colors"
+              className="flex items-center bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-60 text-white text-sm font-semibold px-4 py-2.5 rounded-lg shadow-md transition-colors"
             >
               {saving ? (
                 <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving…</>
