@@ -6,8 +6,15 @@ const isProtectedRoute = createRouteMatcher([
   "/api/generate(.*)",
   "/api/publish(.*)",
   "/api/workspace(.*)",
+  "/api/campaigns(.*)",
+  "/api/series(.*)",
+  "/api/posts(.*)",
+  "/api/templates(.*)",
   "/api/auth/google/signin(.*)",
-  "/api/auth/google/callback(.*)",
+  "/api/auth/google/disconnect(.*)",
+  // /api/auth/google/callback is intentionally excluded — it's an OAuth callback
+  // that receives cross-site redirects from Google. Clerk session won't be present
+  // on that redirect; identity is validated via the signed state + CSRF cookie instead.
 ]);
 
 const isAuthPage = createRouteMatcher(["/sign-in", "/sign-up"]);

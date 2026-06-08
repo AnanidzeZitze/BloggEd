@@ -10,6 +10,7 @@ import {
   Settings,
   FolderKanban,
   FileText,
+  LayoutTemplate,
   ChevronsUpDown,
   Plus,
   Globe,
@@ -36,6 +37,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
     { name: "Campaigns", href: "/dashboard/campaigns", icon: FolderKanban },
     { name: "Blog Posts", href: "/dashboard/posts", icon: FileText },
+    { name: "Post Templates", href: "/dashboard/templates", icon: LayoutTemplate },
     { name: "Brand Context & Template", href: "/dashboard/settings", icon: Settings },
   ];
 

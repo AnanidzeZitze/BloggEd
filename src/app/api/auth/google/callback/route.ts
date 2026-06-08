@@ -1,15 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
 import { getOAuth2Client } from "@/lib/google-auth";
 import { db } from "@/lib/db";
 import { encrypt } from "@/lib/encrypt";
 
 export async function GET(req: NextRequest) {
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.redirect(new URL("/sign-in", req.url));
-  }
-
   const { searchParams } = new URL(req.url);
   const code = searchParams.get("code");
   const rawState = searchParams.get("state");
@@ -26,20 +20,20 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ success: false, error: "Malformed state parameter" }, { status: 400 });
   }
 
-  // Verify the user in state matches the logged-in user (prevents OAuth token fixation)
-  if (!stateData.userId || stateData.userId !== userId) {
-    return NextResponse.json({ success: false, error: "State user mismatch" }, { status: 403 });
+  if (!stateData.workspaceId || !stateData.userId || !stateData.csrfToken) {
+    return NextResponse.json({ success: false, error: "Incomplete state parameter" }, { status: 400 });
   }
 
-  // Verify CSRF token from HttpOnly cookie
+  // Verify CSRF token from HttpOnly cookie — this proves the callback originates
+  // from the same browser that started the OAuth flow on our server.
   const cookieCsrf = req.cookies.get("oauth_csrf")?.value;
   if (!cookieCsrf || cookieCsrf !== stateData.csrfToken) {
     return NextResponse.json({ success: false, error: "CSRF token invalid" }, { status: 403 });
   }
 
-  // Verify workspace ownership — never create, only update
+  // Verify workspace ownership using the userId embedded in the state at flow-initiation time
   const workspace = await db.workspace.findUnique({ where: { id: stateData.workspaceId } });
-  if (!workspace || workspace.clerkUserId !== userId) {
+  if (!workspace || workspace.clerkUserId !== stateData.userId) {
     return NextResponse.json({ success: false, error: "Workspace not found or access denied" }, { status: 403 });
   }
 
@@ -62,7 +56,11 @@ export async function GET(req: NextRequest) {
     response.cookies.delete("oauth_csrf");
     return response;
   } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
     console.error("[OAuth Callback] Token exchange error:", err);
-    return NextResponse.json({ success: false, error: "OAuth exchange failed" }, { status: 500 });
+    return NextResponse.json(
+      { success: false, error: "OAuth exchange failed", detail: message },
+      { status: 500 }
+    );
   }
 }

@@ -58,7 +58,6 @@ function compilePostToHtml(post: GeneratedPost): string {
 }
 
 export async function GET(req: NextRequest) {
-  // Verify the request is from Vercel Cron
   const authHeader = req.headers.get("authorization");
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -66,33 +65,33 @@ export async function GET(req: NextRequest) {
 
   const now = new Date();
 
-  // Find all posts due for publishing
   const duePosts = await db.post.findMany({
     where: {
       status: "SCHEDULED",
       publishedAt: { lte: now },
     },
     include: {
-      campaign: {
+      series: {
         include: {
-          workspace: true,
+          campaign: {
+            include: { workspace: true },
+          },
         },
       },
     },
-    take: 20, // process at most 20 per run to avoid timeout
+    take: 20,
   });
 
   const results: Array<{ postId: string; success: boolean; error?: string }> = [];
 
   for (const post of duePosts) {
-    const workspace = post.campaign.workspace;
+    const workspace = post.series.campaign.workspace;
 
     try {
       if (!workspace.googleRefreshToken) {
         throw new Error("No Google token for workspace");
       }
 
-      // Build Blogger client
       const oauth2Client = getOAuth2Client();
       oauth2Client.setCredentials({
         access_token: safeDecrypt(workspace.googleAccessToken) ?? undefined,

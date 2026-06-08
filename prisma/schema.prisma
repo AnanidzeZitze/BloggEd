@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -10,52 +7,98 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Workspace {
-  id                 String     @id @default(uuid())
-  clerkUserId        String     @default("")
-  name               String
-  slug               String     @unique
-  brandContext       String?    @db.Text
-  blogTemplate       String?    @db.Text
-  
-  // Custom User Gemini API Key
-  customGeminiKey    String?    @db.Text
-
-  // Cloud Google Blogger Credentials
-  googleAccessToken  String?    @db.Text
-  googleRefreshToken String?    @db.Text
-  googleTokenExpiry  DateTime?
-  bloggerBlogId      String?    // Custom Blogger Blog ID per Brand
-
-  campaigns          Campaign[]
-  createdAt          DateTime   @default(now())
-  updatedAt          DateTime   @updatedAt
+enum TemplateType {
+  POST
+  CAMPAIGN
+  SERIES
 }
 
+model Workspace {
+  id                 String         @id @default(uuid())
+  clerkUserId        String         @default("")
+  name               String
+  slug               String         @unique
+  brandContext       String?        @db.Text
+  blogTemplate       String?        @db.Text
+  customGeminiKey    String?        @db.Text
+  googleAccessToken  String?        @db.Text
+  googleRefreshToken String?        @db.Text
+  googleTokenExpiry  DateTime?
+  bloggerBlogId      String?
+  campaigns          Campaign[]
+  templates          Template[]
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+}
+
+// Broad strategic initiative (e.g. "Q1 2025 AI in Marketing Push")
 model Campaign {
-  id              String    @id @default(uuid())
+  id              String     @id @default(uuid())
   workspaceId     String
-  workspace       Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspace       Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  templateId      String?
+  template        Template?  @relation("CampaignTemplate", fields: [templateId], references: [id], onDelete: SetNull)
   name            String
-  description     String?   @db.Text
-  campaignContext String?   @db.Text
-  posts           Post[]
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  description     String?    @db.Text
+  campaignContext String?    @db.Text
+  keywordCluster  String?    @db.Text
+  series          Series[]
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+}
+
+// Specific content series within a campaign (e.g. "Martech Audit Series")
+model Series {
+  id             String     @id @default(uuid())
+  campaignId     String
+  campaign       Campaign   @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  templateId     String?
+  template       Template?  @relation("SeriesTemplate", fields: [templateId], references: [id], onDelete: SetNull)
+  name           String
+  description    String?    @db.Text
+  seriesContext  String?    @db.Text
+  keywordCluster String?    @db.Text
+  posts          Post[]
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
 }
 
 model Post {
   id               String    @id @default(uuid())
-  campaignId       String
-  campaign         Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  seriesId         String
+  series           Series    @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  templateId       String?
+  template         Template? @relation("PostTemplate", fields: [templateId], references: [id], onDelete: SetNull)
   title            String
   subtitle         String?   @db.Text
   postInputContext String?   @db.Text
-  status           String    @default("DRAFT") // DRAFT, SCHEDULED, PUBLISHED
-  content          Json?     // Stored as Structured JSON: {"sections": [...], "image_metaphors": [...]}
+  status           String    @default("DRAFT")
+  content          Json?
   bloggerUrl       String?
   bloggerId        String?
   publishedAt      DateTime?
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
+}
+
+// Unified template model — type determines which fields are relevant
+// POST:     proseBrief + postRecipe + htmlStyleConfig
+// CAMPAIGN: proseBrief (default context injected into new campaigns)
+// SERIES:   proseBrief (default context) + keywordCluster hint
+model Template {
+  id              String       @id @default(uuid())
+  workspaceId     String
+  workspace       Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  templateType    TemplateType @default(POST)
+  name            String
+  description     String?
+  proseBrief      String?      @db.Text
+  keywordCluster  String?      @db.Text
+  postRecipe      Json?
+  htmlStyleConfig Json?
+  campaigns       Campaign[]   @relation("CampaignTemplate")
+  series          Series[]     @relation("SeriesTemplate")
+  posts           Post[]       @relation("PostTemplate")
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
 }

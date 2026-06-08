@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
-import { FolderKanban, Plus, Calendar, Trash2, Loader2 } from "lucide-react";
+import Link from "next/link";
+import { FolderKanban, Plus, Calendar, Trash2, Loader2, ArrowRight } from "lucide-react";
 import { useWorkspace } from "@/lib/workspace-context";
 
 interface CampaignItem {
@@ -9,7 +10,7 @@ interface CampaignItem {
   name: string;
   description: string;
   campaignContext: string;
-  postsCount: number;
+  seriesCount: number;
   createdAt: string;
 }
 
@@ -82,9 +83,9 @@ export default function CampaignsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="space-y-1">
-          <h1 className="text-xl font-bold text-white">Campaign Series Manager</h1>
+          <h1 className="text-xl font-bold text-white">Campaigns</h1>
           <p className="text-xs text-gray-400">
-            Organize blog posts into thematic series. Campaign context is injected into the AI writer for each post.
+            Each campaign contains series of posts. Campaign context is injected into AI generation for all posts within.
           </p>
         </div>
         <button
@@ -93,7 +94,7 @@ export default function CampaignsPage() {
           className="flex items-center bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-xs font-semibold px-4 py-2.5 rounded-lg shadow-md transition-colors disabled:opacity-50"
         >
           <Plus className="w-4 h-4 mr-1.5" />
-          Create Series
+          New Campaign
         </button>
       </div>
 
@@ -109,7 +110,7 @@ export default function CampaignsPage() {
 
       {!loadingList && !listError && campaigns.length === 0 && (
         <div className="text-sm text-gray-500 py-12 text-center">
-          No campaigns yet. Click &ldquo;Create Series&rdquo; to get started.
+          No campaigns yet. Click &ldquo;New Campaign&rdquo; to get started.
         </div>
       )}
 
@@ -143,16 +144,20 @@ export default function CampaignsPage() {
 
               <div className="border-t border-gray-800 pt-3 flex items-center justify-between">
                 <span className="text-[10px] font-bold text-gray-400">
-                  {camp.postsCount} post{camp.postsCount !== 1 ? "s" : ""}
+                  {camp.seriesCount} series
                 </span>
-
-                <button
-                  onClick={() => handleDelete(camp.id)}
-                  title="Delete Series"
-                  className="p-1.5 rounded-md hover:bg-red-500/10 text-gray-500 hover:text-red-400 transition-colors"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
+                <div className="flex items-center gap-1">
+                  <Link href={`/dashboard/campaigns/${camp.id}`} className="flex items-center text-[10px] font-semibold text-[var(--accent)] hover:text-[var(--accent-hover)] transition-colors px-2 py-1 rounded hover:bg-[var(--accent)]/10">
+                    Open <ArrowRight className="w-3 h-3 ml-1" />
+                  </Link>
+                  <button
+                    onClick={() => handleDelete(camp.id)}
+                    title="Delete Series"
+                    className="p-1.5 rounded-md hover:bg-red-500/10 text-gray-500 hover:text-red-400 transition-colors"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
             </div>
           ))}
@@ -165,17 +170,17 @@ export default function CampaignsPage() {
           <div className="bg-[var(--bg-overlay)] border border-gray-700 rounded-xl max-w-md w-full p-6 shadow-2xl">
             <h3 className="text-lg font-bold text-white mb-2 flex items-center">
               <FolderKanban className="w-5 h-5 text-[var(--accent)] mr-2" />
-              Create Blog Series
+              New Campaign
             </h3>
             <p className="text-xs text-gray-400 mb-4">
-              The campaign context is injected into every AI generation request for posts in this series.
+              Campaigns organise series of posts. The campaign context is injected into every AI generation request within it.
             </p>
             {createError && (
               <p className="text-xs text-red-400 mb-3 bg-red-900/20 px-3 py-2 rounded-md">{createError}</p>
             )}
             <form onSubmit={handleCreateCampaign} className="space-y-4">
               <div>
-                <label className="block text-xs text-gray-400 font-semibold mb-1">Series Name *</label>
+                <label className="block text-xs text-gray-400 font-semibold mb-1">Campaign Name *</label>
                 <input
                   type="text"
                   required
@@ -198,7 +203,7 @@ export default function CampaignsPage() {
               </div>
 
               <div>
-                <label className="block text-xs text-gray-400 font-semibold mb-1">Strategic Goal Context</label>
+                <label className="block text-xs text-gray-400 font-semibold mb-1">Campaign Context</label>
                 <textarea
                   rows={3}
                   placeholder="e.g. Focus on evaluating HubSpot, Salesforce. Highlight when to buy vs. when to move on."
@@ -222,7 +227,7 @@ export default function CampaignsPage() {
                   className="px-4 py-2 rounded-lg bg-[var(--accent)] text-white text-xs hover:bg-[var(--accent-hover)] transition-colors font-semibold disabled:opacity-60 flex items-center"
                 >
                   {creating && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}
-                  Create Campaign
+                  Create
                 </button>
               </div>
             </form>

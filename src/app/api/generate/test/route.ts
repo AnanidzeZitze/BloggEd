@@ -7,6 +7,8 @@ import { getOAuth2Client } from "@/lib/google-auth";
 import { getAuthenticatedWorkspace } from "@/lib/workspace-guard";
 import { safeDecrypt, encrypt } from "@/lib/encrypt";
 import { generateLimiter, checkRateLimit } from "@/lib/rate-limit";
+import { compileRecipeToPrompt, DEFAULT_HTML_STYLE, HtmlStyleConfig, PostRecipe } from "@/lib/post-recipe";
+import { TemplateType } from "@prisma/client";
 
 const TOPIC_MAX_LENGTH = 500;
 const CONTEXT_MAX_LENGTH = 2000;
@@ -122,15 +124,19 @@ async function uploadImageToHost(base64Image: string): Promise<string> {
 // HTML compiler (XSS-safe)
 // ---------------------------------------------------------------------------
 
-function compilePostToHtml(post: GeneratedPost): string {
+function compilePostToHtml(post: GeneratedPost, style: HtmlStyleConfig = DEFAULT_HTML_STYLE): string {
+  const heading = style.headingColor ?? "#1a3c5e";
+  const accent = style.accentColor ?? "#f97316";
+  const font = style.fontBody ?? "Georgia, serif";
+  const subtitleStyle = style.subtitleStyle ?? "italic_bordered";
+
   const parts: string[] = [];
 
   if (post.subtitle) {
-    parts.push(
-      `<p style="font-size:1.15em;color:#555;font-style:italic;` +
-      `border-left:3px solid #1a73e8;padding-left:14px;` +
-      `margin-bottom:1.5em;">${escapeHtml(post.subtitle)}</p>`
-    );
+    let subtitleCss = `font-size:1.15em;color:#555;font-family:${font};margin-bottom:1.5em;`;
+    if (subtitleStyle === "italic_bordered") subtitleCss += `font-style:italic;border-left:3px solid ${accent};padding-left:14px;`;
+    else if (subtitleStyle === "italic_only") subtitleCss += `font-style:italic;`;
+    parts.push(`<p style="${subtitleCss}">${escapeHtml(post.subtitle)}</p>`);
   }
 
   const img1 = post.image_metaphors.find((m) => m.section_index === 0);
@@ -148,7 +154,7 @@ function compilePostToHtml(post: GeneratedPost): string {
 
   post.sections.forEach((section, index) => {
     if (section.heading) {
-      parts.push(`<h2 style="color:#1a3c5e;margin-top:1.8em;">${escapeHtml(section.heading)}</h2>`);
+      parts.push(`<h2 style="color:${heading};font-family:${font};margin-top:1.8em;">${escapeHtml(section.heading)}</h2>`);
     }
     section.paragraphs.forEach((para) => parts.push(`<p>${escapeHtml(para)}</p>`));
 
@@ -265,7 +271,8 @@ async function handleRequest(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   let topic = (searchParams.get("topic") ?? "").trim();
   let postInputContext = "";
-  let campaignId = searchParams.get("campaignId") ?? "";
+  let seriesId = searchParams.get("seriesId") ?? "";
+  let templateId = searchParams.get("templateId") ?? "";
 
   if (req.method === "POST") {
     try {
@@ -274,7 +281,8 @@ async function handleRequest(req: NextRequest) {
       if (body?.postInputContext && typeof body.postInputContext === "string") {
         postInputContext = body.postInputContext.trim().slice(0, CONTEXT_MAX_LENGTH);
       }
-      if (body?.campaignId && typeof body.campaignId === "string") campaignId = body.campaignId.trim();
+      if (body?.seriesId && typeof body.seriesId === "string") seriesId = body.seriesId.trim();
+      if (body?.templateId && typeof body.templateId === "string") templateId = body.templateId.trim();
     } catch {
       // not JSON — ignore
     }
@@ -297,12 +305,28 @@ async function handleRequest(req: NextRequest) {
     return NextResponse.json({ success: false, error: wsError }, { status: wsStatus });
   }
 
-  // 4b. Verify campaign belongs to this workspace (if provided)
+  // 4b. Verify series belongs to this workspace (if provided); load parent campaign too
+  let series = null;
   let campaign = null;
-  if (campaignId) {
-    campaign = await db.campaign.findFirst({ where: { id: campaignId, workspaceId: workspace.id } });
-    if (!campaign) {
-      return NextResponse.json({ success: false, error: "Campaign not found in this workspace" }, { status: 404 });
+  if (seriesId) {
+    series = await db.series.findFirst({
+      where: { id: seriesId, campaign: { workspaceId: workspace.id } },
+      include: { campaign: true },
+    });
+    if (!series) {
+      return NextResponse.json({ success: false, error: "Series not found in this workspace" }, { status: 404 });
+    }
+    campaign = series.campaign;
+  }
+
+  // 4c. Load post template (if provided)
+  let postTemplate = null;
+  if (templateId) {
+    postTemplate = await db.template.findFirst({
+      where: { id: templateId, workspaceId: workspace.id, templateType: TemplateType.POST },
+    });
+    if (!postTemplate) {
+      return NextResponse.json({ success: false, error: "Template not found in this workspace" }, { status: 404 });
     }
   }
 
@@ -321,8 +345,19 @@ async function handleRequest(req: NextRequest) {
 
   const ai = new GoogleGenAI({ apiKey: activeGeminiKey });
 
-  // 6. Writing brief comes from workspace.blogTemplate; fall back to a sensible default
-  const briefContent = workspace.blogTemplate?.trim() ?? "";
+  // 6. Build system instruction: workspace brief + template prose brief + compiled recipe
+  const instructionParts: string[] = [];
+  if (workspace.blogTemplate?.trim()) {
+    instructionParts.push(`WRITING BRIEF:\n${workspace.blogTemplate.trim()}`);
+  }
+  if (postTemplate?.proseBrief?.trim()) {
+    instructionParts.push(`TEMPLATE STYLE GUIDE (${postTemplate.name}):\n${postTemplate.proseBrief.trim()}`);
+  }
+  if (postTemplate?.postRecipe) {
+    const recipe = postTemplate.postRecipe as PostRecipe;
+    instructionParts.push(compileRecipeToPrompt(recipe, postTemplate.name));
+  }
+  const briefContent = instructionParts.join("\n\n");
 
   // 7. Gemini structured output schema
   const postSchema = {
@@ -365,6 +400,12 @@ async function handleRequest(req: NextRequest) {
     }
     if (campaign?.campaignContext?.trim()) {
       contextParts.push(`CAMPAIGN CONTEXT:\n${campaign.campaignContext.trim()}`);
+    }
+    if (series?.seriesContext?.trim()) {
+      contextParts.push(`SERIES CONTEXT:\n${series.seriesContext.trim()}`);
+    }
+    if (series?.keywordCluster?.trim()) {
+      contextParts.push(`TARGET KEYWORDS FOR THIS SERIES:\n${series.keywordCluster.trim()}`);
     }
     if (postInputContext) {
       contextParts.push(`ADDITIONAL CONTEXT PROVIDED BY THE AUTHOR:\n${postInputContext}`);
@@ -415,8 +456,9 @@ async function handleRequest(req: NextRequest) {
       }
     }
 
-    // 9. Compile HTML and publish to Blogger
-    const htmlContent = compilePostToHtml(parsedPost);
+    // 9. Compile HTML (use template style if available)
+    const htmlStyle = (postTemplate?.htmlStyleConfig as HtmlStyleConfig | null) ?? DEFAULT_HTML_STYLE;
+    const htmlContent = compilePostToHtml(parsedPost, htmlStyle);
 
     let bloggerResult = null;
     let bloggerError = null;
@@ -442,13 +484,14 @@ async function handleRequest(req: NextRequest) {
       console.error("[Generate] Blogger publish failed:", blogErr);
     }
 
-    // 10. Save post to DB (if a campaign is associated)
+    // 10. Save post to DB (if a series is associated)
     let savedPostId: string | null = null;
-    if (campaignId && campaign) {
+    if (seriesId && series) {
       try {
         const savedPost = await db.post.create({
           data: {
-            campaignId,
+            seriesId,
+            templateId: templateId || null,
             title: parsedPost.title,
             subtitle: parsedPost.subtitle ?? null,
             postInputContext: postInputContext || null,

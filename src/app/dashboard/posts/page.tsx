@@ -1,20 +1,10 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import {
-  Plus,
-  Sparkles,
-  Loader2,
-  Check,
-  AlertCircle,
-  Edit3,
-  Send,
-  ArrowLeft,
-  Globe,
-  Image as ImageIcon,
-  Save,
-  Trash2,
-  Calendar,
+  Plus, Sparkles, Loader2, Check, AlertCircle, Edit3, Send,
+  ArrowLeft, Globe, Image as ImageIcon, Save, Trash2, Calendar,
 } from "lucide-react";
 import { useWorkspace } from "@/lib/workspace-context";
 
@@ -40,7 +30,8 @@ interface PostItem {
   id: string;
   title: string;
   subtitle: string;
-  campaignId: string;
+  seriesId: string;
+  seriesName: string;
   campaignName: string;
   status: string;
   createdAt: string;
@@ -49,32 +40,33 @@ interface PostItem {
   content: GeneratedPost | null;
 }
 
-interface CampaignOption {
-  id: string;
-  name: string;
-}
+interface CampaignOption { id: string; name: string; }
+interface SeriesOption { id: string; name: string; campaignId: string; }
+interface TemplateOption { id: string; name: string; description: string; }
 
-export default function PostsPage() {
+function PostsPageInner() {
   const { activeWorkspaceId } = useWorkspace();
+  const searchParams = useSearchParams();
 
   const [view, setView] = useState<"list" | "generator" | "editor">("list");
   const [globalError, setGlobalError] = useState<string | null>(null);
   const [globalSuccess, setGlobalSuccess] = useState<string | null>(null);
 
-  // Posts list
   const [posts, setPosts] = useState<PostItem[]>([]);
   const [loadingPosts, setLoadingPosts] = useState(false);
 
-  // Campaigns for dropdown
   const [campaigns, setCampaigns] = useState<CampaignOption[]>([]);
+  const [seriesOptions, setSeriesOptions] = useState<SeriesOption[]>([]);
+  const [loadingSeries, setLoadingSeries] = useState(false);
+  const [templates, setTemplates] = useState<TemplateOption[]>([]);
 
-  // Generation inputs
   const [topic, setTopic] = useState("");
   const [selectedCampaignId, setSelectedCampaignId] = useState("");
+  const [selectedSeriesId, setSelectedSeriesId] = useState("");
+  const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [postInputContext, setPostInputContext] = useState("");
   const [generating, setGenerating] = useState(false);
 
-  // Editor state
   const [editingPost, setEditingPost] = useState<PostItem | null>(null);
   const [editedTitle, setEditedTitle] = useState("");
   const [editedSubtitle, setEditedSubtitle] = useState("");
@@ -91,9 +83,7 @@ export default function PostsPage() {
       const res = await fetch(`/api/posts?workspaceId=${activeWorkspaceId}`);
       const json = await res.json();
       if (json.success) setPosts(json.data);
-    } catch {
-      // ignore
-    } finally {
+    } catch { /* ignore */ } finally {
       setLoadingPosts(false);
     }
   }, [activeWorkspaceId]);
@@ -103,54 +93,97 @@ export default function PostsPage() {
     try {
       const res = await fetch(`/api/campaigns?workspaceId=${activeWorkspaceId}`);
       const json = await res.json();
-      if (json.success) {
-        const list: CampaignOption[] = json.data.map((c: { id: string; name: string }) => ({ id: c.id, name: c.name }));
-        setCampaigns(list);
-        if (list.length > 0 && !selectedCampaignId) setSelectedCampaignId(list[0].id);
-      }
-    } catch {
-      // ignore
+      if (json.success) setCampaigns(json.data.map((c: { id: string; name: string }) => ({ id: c.id, name: c.name })));
+    } catch { /* ignore */ }
+  }, [activeWorkspaceId]);
+
+  const loadTemplates = useCallback(async () => {
+    if (!activeWorkspaceId) return;
+    try {
+      const res = await fetch(`/api/templates?workspaceId=${activeWorkspaceId}&type=POST`);
+      const json = await res.json();
+      if (json.success) setTemplates(json.data.map((t: { id: string; name: string; description: string }) => ({ id: t.id, name: t.name, description: t.description })));
+    } catch { /* ignore */ }
+  }, [activeWorkspaceId]);
+
+  // Load series whenever selected campaign changes
+  useEffect(() => {
+    if (!selectedCampaignId) { setSeriesOptions([]); setSelectedSeriesId(""); return; }
+    setLoadingSeries(true);
+    setSelectedSeriesId("");
+    fetch(`/api/series?campaignId=${selectedCampaignId}`)
+      .then((r) => r.json())
+      .then((json) => {
+        if (json.success) {
+          const list: SeriesOption[] = json.data.map((s: { id: string; name: string }) => ({ id: s.id, name: s.name, campaignId: selectedCampaignId }));
+          setSeriesOptions(list);
+          if (list.length > 0) setSelectedSeriesId(list[0].id);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoadingSeries(false));
+  }, [selectedCampaignId]);
+
+  // Handle URL params: ?seriesId=... or legacy ?campaignId=...
+  useEffect(() => {
+    const preSeriesId = searchParams.get("seriesId");
+    if (preSeriesId && activeWorkspaceId) {
+      fetch(`/api/series?id=${preSeriesId}`)
+        .then((r) => r.json())
+        .then((json) => {
+          if (json.success) {
+            setSelectedCampaignId(json.data.campaignId);
+            setSelectedSeriesId(preSeriesId);
+            setView("generator");
+          }
+        })
+        .catch(() => {});
     }
-  }, [activeWorkspaceId, selectedCampaignId]);
+  }, [searchParams, activeWorkspaceId]);
 
   useEffect(() => {
     loadPosts();
     loadCampaigns();
-  }, [loadPosts, loadCampaigns]);
+    loadTemplates();
+  }, [loadPosts, loadCampaigns, loadTemplates]);
+
+  // Auto-select first campaign when campaigns load (and no URL param already selected)
+  useEffect(() => {
+    if (campaigns.length > 0 && !selectedCampaignId && !searchParams.get("seriesId")) {
+      setSelectedCampaignId(campaigns[0].id);
+    }
+  }, [campaigns, selectedCampaignId, searchParams]);
 
   const showSuccess = (msg: string) => {
     setGlobalSuccess(msg);
     setTimeout(() => setGlobalSuccess(null), 4000);
   };
 
-  // --- Generate ---
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!topic.trim() || !activeWorkspaceId) return;
+    if (!topic.trim() || !activeWorkspaceId || !selectedSeriesId) return;
     setGenerating(true);
     setGlobalError(null);
     try {
-      const res = await fetch(
-        `/api/generate/test?workspaceId=${activeWorkspaceId}${selectedCampaignId ? `&campaignId=${selectedCampaignId}` : ""}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ topic, postInputContext, campaignId: selectedCampaignId }),
-        }
-      );
+      const res = await fetch(`/api/generate/test?workspaceId=${activeWorkspaceId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ topic, postInputContext, seriesId: selectedSeriesId, templateId: selectedTemplateId || undefined }),
+      });
       const data = await res.json();
       if (!res.ok || !data.success) throw new Error(data.error ?? "Generation failed");
 
       const generated: GeneratedPost = data.generated_post;
-      const dbPostId: string | null = data.post_id ?? null;
+      const series = seriesOptions.find((s) => s.id === selectedSeriesId);
       const campaign = campaigns.find((c) => c.id === selectedCampaignId);
 
       const newPost: PostItem = {
-        id: dbPostId ?? `local-${Date.now()}`,
+        id: data.post_id ?? `local-${Date.now()}`,
         title: generated.title,
         subtitle: generated.subtitle,
-        campaignId: selectedCampaignId,
-        campaignName: campaign?.name ?? "Unknown",
+        seriesId: selectedSeriesId,
+        seriesName: series?.name ?? "",
+        campaignName: campaign?.name ?? "",
         status: "DRAFT",
         createdAt: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
         bloggerUrl: data.blogger_post?.url ?? null,
@@ -160,7 +193,7 @@ export default function PostsPage() {
 
       setPosts((prev) => [newPost, ...prev]);
       loadIntoEditor(newPost);
-      showSuccess("Post generated and saved to database.");
+      showSuccess("Post generated and saved.");
     } catch (err) {
       setGlobalError(err instanceof Error ? err.message : "Generation failed");
     } finally {
@@ -168,7 +201,6 @@ export default function PostsPage() {
     }
   };
 
-  // --- Editor helpers ---
   const loadIntoEditor = (post: PostItem) => {
     setEditingPost(post);
     setEditedTitle(post.title);
@@ -203,7 +235,6 @@ export default function PostsPage() {
     setEditedSections((prev) => [...prev, { heading: "New Section", paragraphs: [""] }]);
   };
 
-  // --- Save to DB ---
   const handleSave = async () => {
     if (!editingPost) return;
     setSaving(true);
@@ -212,7 +243,6 @@ export default function PostsPage() {
       ? { ...editingPost.content, title: editedTitle, subtitle: editedSubtitle, sections: editedSections }
       : null;
 
-    // If post is already in DB (id doesn't start with local-)
     if (!editingPost.id.startsWith("local-")) {
       try {
         const res = await fetch(`/api/posts?id=${editingPost.id}`, {
@@ -234,14 +264,13 @@ export default function PostsPage() {
       return;
     }
 
-    // Local-only post: create in DB
-    if (!activeWorkspaceId || !selectedCampaignId) { setSaving(false); return; }
+    if (!activeWorkspaceId || !selectedSeriesId) { setSaving(false); return; }
     try {
       const res = await fetch(`/api/posts?workspaceId=${activeWorkspaceId}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          campaignId: editingPost.campaignId || selectedCampaignId,
+          seriesId: editingPost.seriesId || selectedSeriesId,
           title: editedTitle,
           subtitle: editedSubtitle,
           content: updatedContent,
@@ -261,7 +290,6 @@ export default function PostsPage() {
     }
   };
 
-  // --- Publish to Blogger ---
   const handlePublish = async () => {
     if (!editingPost || !activeWorkspaceId) return;
     setPublishing(true);
@@ -284,7 +312,6 @@ export default function PostsPage() {
       const bloggerUrl = data.blogger_post?.url ?? null;
       const bloggerId = data.blogger_post?.id ?? null;
 
-      // Patch status in DB if we have a real id
       if (!editingPost.id.startsWith("local-")) {
         await fetch(`/api/posts?id=${editingPost.id}`, {
           method: "PATCH",
@@ -304,7 +331,6 @@ export default function PostsPage() {
     }
   };
 
-  // --- Schedule post ---
   const handleSchedule = async () => {
     if (!editingPost || !scheduleAt) return;
     const scheduledDate = new Date(scheduleAt);
@@ -336,7 +362,6 @@ export default function PostsPage() {
     }
   };
 
-  // --- Delete post ---
   const handleDeletePost = async (id: string) => {
     if (!confirm("Delete this post?")) return;
     if (!id.startsWith("local-")) {
@@ -345,17 +370,8 @@ export default function PostsPage() {
     setPosts((prev) => prev.filter((p) => p.id !== id));
   };
 
-  const statusBadge = (status: string) => {
-    if (status === "PUBLISHED") return "bg-emerald-500/10 text-emerald-400 border-emerald-500/20";
-    if (status === "SCHEDULED") return "bg-purple-500/10 text-purple-400 border-purple-500/20";
-    return "bg-amber-500/10 text-amber-400 border-amber-500/20";
-  };
-
-  const statusLabel = (status: string) => {
-    if (status === "PUBLISHED") return "Published";
-    if (status === "SCHEDULED") return "Scheduled";
-    return "Draft";
-  };
+  const statusBadge = (s: string) => s === "PUBLISHED" ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : s === "SCHEDULED" ? "bg-purple-500/10 text-purple-400 border-purple-500/20" : "bg-amber-500/10 text-amber-400 border-amber-500/20";
+  const statusLabel = (s: string) => s === "PUBLISHED" ? "Published" : s === "SCHEDULED" ? "Scheduled" : "Draft";
 
   return (
     <div className="space-y-6">
@@ -365,17 +381,14 @@ export default function PostsPage() {
           <div className="flex items-center justify-between">
             <div className="space-y-1">
               <h1 className="text-xl font-bold text-white">Blog Article Hub</h1>
-              <p className="text-xs text-gray-400">
-                Generate, edit, and publish posts directly to your Google Blogger draft queue.
-              </p>
+              <p className="text-xs text-gray-400">Generate, edit, and publish posts to your Google Blogger draft queue.</p>
             </div>
             <button
               onClick={() => { setView("generator"); setGlobalError(null); }}
               disabled={!activeWorkspaceId}
               className="flex items-center bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-xs font-semibold px-4 py-2.5 rounded-lg shadow-md transition-colors disabled:opacity-50"
             >
-              <Plus className="w-4 h-4 mr-1.5" />
-              New AI Post
+              <Plus className="w-4 h-4 mr-1.5" />New AI Post
             </button>
           </div>
 
@@ -392,7 +405,7 @@ export default function PostsPage() {
           ) : (
             <div className="bg-[var(--bg-surface)] border border-gray-800 rounded-xl overflow-hidden shadow-sm">
               <div className="p-4 border-b border-gray-800 flex items-center justify-between bg-[var(--bg-deep)]">
-                <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Title & Series</span>
+                <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Title / Series</span>
                 <span className="text-xs font-bold text-gray-400 uppercase tracking-wider text-right pr-6">Status</span>
               </div>
               {posts.length === 0 ? (
@@ -401,41 +414,29 @@ export default function PostsPage() {
                 <div className="divide-y divide-gray-800">
                   {posts.map((post) => (
                     <div key={post.id} className="p-4 hover:bg-[var(--bg-elevated)] transition-colors flex items-center justify-between">
-                      <div className="space-y-1 truncate pr-4">
+                      <div className="space-y-0.5 truncate pr-4">
                         <p className="text-sm font-semibold text-gray-200 truncate max-w-xl">{post.title}</p>
                         <div className="flex items-center text-[10px] text-gray-500 space-x-2">
                           <span className="font-semibold text-gray-400">{post.campaignName}</span>
-                          <span>•</span>
+                          <span>›</span>
+                          <span className="text-gray-500">{post.seriesName}</span>
+                          <span>·</span>
                           <span>{post.createdAt}</span>
                         </div>
                       </div>
-                      <div className="flex items-center space-x-3">
+                      <div className="flex items-center space-x-2 shrink-0">
                         <span className={`px-2 py-0.5 rounded-full text-[9px] font-semibold border ${statusBadge(post.status)}`}>
                           {statusLabel(post.status)}
                         </span>
-                        <button
-                          onClick={() => loadIntoEditor(post)}
-                          className="p-1.5 rounded bg-gray-800 hover:bg-[var(--accent)] text-gray-400 hover:text-white transition-colors"
-                          title="Open Editor"
-                        >
+                        <button onClick={() => loadIntoEditor(post)} className="p-1.5 rounded bg-gray-800 hover:bg-[var(--accent)] text-gray-400 hover:text-white transition-colors" title="Open Editor">
                           <Edit3 className="w-3.5 h-3.5" />
                         </button>
                         {post.bloggerUrl && (
-                          <a
-                            href={post.bloggerUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="p-1.5 rounded bg-gray-800 hover:bg-[#9c27b0] text-gray-400 hover:text-white transition-colors"
-                            title="View on Blogger"
-                          >
+                          <a href={post.bloggerUrl} target="_blank" rel="noreferrer" className="p-1.5 rounded bg-gray-800 hover:bg-[#9c27b0] text-gray-400 hover:text-white transition-colors">
                             <Globe className="w-3.5 h-3.5" />
                           </a>
                         )}
-                        <button
-                          onClick={() => handleDeletePost(post.id)}
-                          className="p-1.5 rounded bg-gray-800 hover:bg-red-500/20 text-gray-500 hover:text-red-400 transition-colors"
-                          title="Delete post"
-                        >
+                        <button onClick={() => handleDeletePost(post.id)} className="p-1.5 rounded bg-gray-800 hover:bg-red-500/20 text-gray-500 hover:text-red-400 transition-colors">
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
@@ -460,8 +461,9 @@ export default function PostsPage() {
 
           <div className="p-6 rounded-xl bg-[var(--bg-surface)] border border-gray-800 shadow-lg">
             <form onSubmit={handleGenerate} className="space-y-5">
+              {/* Campaign picker */}
               <div>
-                <label className="block text-xs text-gray-400 font-semibold mb-1">Campaign Series</label>
+                <label className="block text-xs text-gray-400 font-semibold mb-1">Campaign</label>
                 {campaigns.length === 0 ? (
                   <p className="text-xs text-amber-400">No campaigns yet — create one in the Campaigns tab first.</p>
                 ) : (
@@ -470,9 +472,44 @@ export default function PostsPage() {
                     onChange={(e) => setSelectedCampaignId(e.target.value)}
                     className="w-full bg-[var(--bg-elevated)] border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[var(--accent)] text-white"
                   >
-                    {campaigns.map((c) => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
+                    {campaigns.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                )}
+              </div>
+
+              {/* Series picker */}
+              <div>
+                <label className="block text-xs text-gray-400 font-semibold mb-1">Series</label>
+                {!selectedCampaignId ? (
+                  <p className="text-xs text-gray-500">Select a campaign first.</p>
+                ) : loadingSeries ? (
+                  <div className="flex items-center text-xs text-gray-500"><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Loading series…</div>
+                ) : seriesOptions.length === 0 ? (
+                  <p className="text-xs text-amber-400">No series in this campaign yet — <a href={`/dashboard/campaigns/${selectedCampaignId}`} className="underline">create one</a>.</p>
+                ) : (
+                  <select
+                    value={selectedSeriesId}
+                    onChange={(e) => setSelectedSeriesId(e.target.value)}
+                    className="w-full bg-[var(--bg-elevated)] border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[var(--accent)] text-white"
+                  >
+                    {seriesOptions.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                )}
+              </div>
+
+              {/* Template picker */}
+              <div>
+                <label className="block text-xs text-gray-400 font-semibold mb-1">Post Template <span className="font-normal text-gray-500">(optional)</span></label>
+                {templates.length === 0 ? (
+                  <p className="text-xs text-gray-500">No templates yet — <a href="/dashboard/templates" className="text-[var(--accent)] hover:underline">create one</a> to control structure and formatting.</p>
+                ) : (
+                  <select
+                    value={selectedTemplateId}
+                    onChange={(e) => setSelectedTemplateId(e.target.value)}
+                    className="w-full bg-[var(--bg-elevated)] border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[var(--accent)] text-white"
+                  >
+                    <option value="">— No template (use workspace defaults) —</option>
+                    {templates.map((t) => <option key={t.id} value={t.id}>{t.name}{t.description ? ` — ${t.description}` : ""}</option>)}
                   </select>
                 )}
               </div>
@@ -506,25 +543,18 @@ export default function PostsPage() {
 
               {globalError && (
                 <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs flex items-start">
-                  <AlertCircle className="w-4 h-4 mr-2 mt-0.5 flex-shrink-0" />
-                  {globalError}
+                  <AlertCircle className="w-4 h-4 mr-2 mt-0.5 flex-shrink-0" />{globalError}
                 </div>
               )}
 
               <div className="flex space-x-2 pt-2 justify-end">
-                <button type="button" onClick={() => setView("list")} className="px-4 py-2.5 rounded-lg bg-gray-800 text-gray-300 text-xs hover:bg-gray-700 transition-colors">
-                  Cancel
-                </button>
+                <button type="button" onClick={() => setView("list")} className="px-4 py-2.5 rounded-lg bg-gray-800 text-gray-300 text-xs hover:bg-gray-700 transition-colors">Cancel</button>
                 <button
                   type="submit"
-                  disabled={generating || campaigns.length === 0}
+                  disabled={generating || !selectedSeriesId}
                   className="flex items-center bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-white text-xs font-semibold px-4 py-2.5 rounded-lg shadow-md transition-colors"
                 >
-                  {generating ? (
-                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Generating… (30–60s)</>
-                  ) : (
-                    <><Sparkles className="w-4 h-4 mr-1.5 text-amber-300" />Generate Post</>
-                  )}
+                  {generating ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Generating… (30–60s)</> : <><Sparkles className="w-4 h-4 mr-1.5 text-amber-300" />Generate Post</>}
                 </button>
               </div>
             </form>
@@ -542,7 +572,7 @@ export default function PostsPage() {
               </button>
               <div>
                 <h1 className="text-lg font-bold text-white">Block Editor</h1>
-                <p className="text-[10px] text-gray-500">{editingPost.campaignName}</p>
+                <p className="text-[10px] text-gray-500">{editingPost.campaignName} › {editingPost.seriesName}</p>
               </div>
             </div>
 
@@ -552,78 +582,43 @@ export default function PostsPage() {
                   <Check className="w-3.5 h-3.5 mr-1" />{globalSuccess}
                 </span>
               )}
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className="flex items-center bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs font-semibold px-3 py-2 rounded-lg transition-colors border border-gray-700 disabled:opacity-60"
-              >
-                {saving ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Save className="w-3.5 h-3.5 mr-1.5" />}
-                Save
+              <button onClick={handleSave} disabled={saving} className="flex items-center bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs font-semibold px-3 py-2 rounded-lg transition-colors border border-gray-700 disabled:opacity-60">
+                {saving ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Save className="w-3.5 h-3.5 mr-1.5" />}Save
               </button>
-              <button
-                onClick={handlePublish}
-                disabled={publishing}
-                className="flex items-center bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-white text-xs font-semibold px-3.5 py-2 rounded-lg shadow-md transition-colors"
-              >
-                {publishing ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Send className="w-3.5 h-3.5 mr-1.5" />}
-                Publish Draft
+              <button onClick={handlePublish} disabled={publishing} className="flex items-center bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-white text-xs font-semibold px-3.5 py-2 rounded-lg shadow-md transition-colors">
+                {publishing ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Send className="w-3.5 h-3.5 mr-1.5" />}Publish Draft
               </button>
             </div>
           </div>
 
-          {/* Schedule bar */}
           <div className="flex items-center space-x-2 p-3 rounded-lg bg-[var(--bg-surface)] border border-gray-800">
             <Calendar className="w-4 h-4 text-purple-400 flex-shrink-0" />
             <span className="text-xs text-gray-400 font-semibold whitespace-nowrap">Schedule publish:</span>
-            <input
-              type="datetime-local"
-              value={scheduleAt}
-              onChange={(e) => setScheduleAt(e.target.value)}
-              className="flex-1 bg-[var(--bg-elevated)] border border-gray-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-purple-500"
-            />
-            <button
-              onClick={handleSchedule}
-              disabled={scheduling || !scheduleAt}
-              className="flex items-center bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap"
-            >
-              {scheduling ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Calendar className="w-3 h-3 mr-1" />}
-              Set Schedule
+            <input type="datetime-local" value={scheduleAt} onChange={(e) => setScheduleAt(e.target.value)} className="flex-1 bg-[var(--bg-elevated)] border border-gray-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-purple-500" />
+            <button onClick={handleSchedule} disabled={scheduling || !scheduleAt} className="flex items-center bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap">
+              {scheduling ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Calendar className="w-3 h-3 mr-1" />}Set Schedule
             </button>
             {editingPost.status === "SCHEDULED" && (
-              <span className="text-[10px] text-purple-400 bg-purple-500/10 px-2 py-1 rounded border border-purple-500/20 whitespace-nowrap">
-                Scheduled
-              </span>
+              <span className="text-[10px] text-purple-400 bg-purple-500/10 px-2 py-1 rounded border border-purple-500/20 whitespace-nowrap">Scheduled</span>
             )}
           </div>
 
           {globalError && (
             <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs flex items-start">
-              <AlertCircle className="w-4 h-4 mr-2 mt-0.5 flex-shrink-0" />
-              {globalError}
+              <AlertCircle className="w-4 h-4 mr-2 mt-0.5 flex-shrink-0" />{globalError}
             </div>
           )}
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Left 2 cols: editor */}
             <div className="lg:col-span-2 space-y-6">
               <div className="p-5 rounded-xl bg-[var(--bg-surface)] border border-gray-800 space-y-4">
                 <div>
                   <label className="block text-[10px] text-gray-500 uppercase tracking-wider font-bold mb-1">Post Title</label>
-                  <input
-                    type="text"
-                    value={editedTitle}
-                    onChange={(e) => setEditedTitle(e.target.value)}
-                    className="w-full bg-[var(--bg-elevated)] border border-gray-700 rounded-lg px-3 py-2 text-sm font-semibold text-white focus:outline-none focus:border-[var(--accent)]"
-                  />
+                  <input type="text" value={editedTitle} onChange={(e) => setEditedTitle(e.target.value)} className="w-full bg-[var(--bg-elevated)] border border-gray-700 rounded-lg px-3 py-2 text-sm font-semibold text-white focus:outline-none focus:border-[var(--accent)]" />
                 </div>
                 <div>
                   <label className="block text-[10px] text-gray-500 uppercase tracking-wider font-bold mb-1">Subtitle / Tagline</label>
-                  <input
-                    type="text"
-                    value={editedSubtitle}
-                    onChange={(e) => setEditedSubtitle(e.target.value)}
-                    className="w-full bg-[var(--bg-elevated)] border border-gray-700 rounded-lg px-3 py-2 text-xs text-gray-300 focus:outline-none focus:border-[var(--accent)]"
-                  />
+                  <input type="text" value={editedSubtitle} onChange={(e) => setEditedSubtitle(e.target.value)} className="w-full bg-[var(--bg-elevated)] border border-gray-700 rounded-lg px-3 py-2 text-xs text-gray-300 focus:outline-none focus:border-[var(--accent)]" />
                 </div>
               </div>
 
@@ -632,33 +627,17 @@ export default function PostsPage() {
                 {editedSections.map((section, secIndex) => (
                   <div key={secIndex} className="p-5 rounded-xl bg-[var(--bg-surface)] border border-gray-800 space-y-4">
                     <div>
-                      <label className="block text-[10px] text-gray-500 uppercase tracking-wider font-bold mb-1">
-                        Section Heading {secIndex + 1}
-                      </label>
-                      <input
-                        type="text"
-                        value={section.heading}
-                        onChange={(e) => handleSectionHeadingChange(secIndex, e.target.value)}
-                        className="w-full bg-[var(--bg-elevated)] border border-gray-700 rounded-lg px-3 py-2 text-sm font-semibold text-white focus:outline-none focus:border-[var(--accent)]"
-                      />
+                      <label className="block text-[10px] text-gray-500 uppercase tracking-wider font-bold mb-1">Section Heading {secIndex + 1}</label>
+                      <input type="text" value={section.heading} onChange={(e) => handleSectionHeadingChange(secIndex, e.target.value)} className="w-full bg-[var(--bg-elevated)] border border-gray-700 rounded-lg px-3 py-2 text-sm font-semibold text-white focus:outline-none focus:border-[var(--accent)]" />
                     </div>
                     <div className="space-y-3">
                       <label className="block text-[10px] text-gray-500 uppercase tracking-wider font-bold">Paragraphs</label>
                       {section.paragraphs.map((para, paraIndex) => (
-                        <textarea
-                          key={paraIndex}
-                          rows={3}
-                          value={para}
-                          onChange={(e) => handleParagraphChange(secIndex, paraIndex, e.target.value)}
-                          className="w-full bg-[var(--bg-elevated)] border border-gray-700 rounded-lg px-3 py-2 text-xs text-gray-300 focus:outline-none focus:border-[var(--accent)] leading-relaxed resize-none"
-                        />
+                        <textarea key={paraIndex} rows={3} value={para} onChange={(e) => handleParagraphChange(secIndex, paraIndex, e.target.value)} className="w-full bg-[var(--bg-elevated)] border border-gray-700 rounded-lg px-3 py-2 text-xs text-gray-300 focus:outline-none focus:border-[var(--accent)] leading-relaxed resize-none" />
                       ))}
                     </div>
                     <div className="flex justify-end pt-1">
-                      <button
-                        onClick={() => handleAddParagraph(secIndex)}
-                        className="text-[10px] text-[var(--accent)] hover:text-[var(--accent-hover)] font-semibold flex items-center transition-colors"
-                      >
+                      <button onClick={() => handleAddParagraph(secIndex)} className="text-[10px] text-[var(--accent)] hover:text-[var(--accent-hover)] font-semibold flex items-center transition-colors">
                         <Plus className="w-3 h-3 mr-1" /> Add Paragraph
                       </button>
                     </div>
@@ -666,25 +645,18 @@ export default function PostsPage() {
                 ))}
               </div>
 
-              <button
-                onClick={handleAddSection}
-                className="w-full py-3 rounded-xl border border-dashed border-gray-800 hover:border-gray-600 bg-[var(--bg-surface)]/30 text-gray-400 hover:text-white transition-colors flex items-center justify-center text-xs font-semibold"
-              >
+              <button onClick={handleAddSection} className="w-full py-3 rounded-xl border border-dashed border-gray-800 hover:border-gray-600 bg-[var(--bg-surface)]/30 text-gray-400 hover:text-white transition-colors flex items-center justify-center text-xs font-semibold">
                 <Plus className="w-4 h-4 mr-1.5" /> Add Section
               </button>
             </div>
 
-            {/* Right: image metaphors */}
             <div className="space-y-6">
               <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">AI Image Metaphors</h3>
               {editingPost.content?.image_metaphors?.length ? (
                 editingPost.content.image_metaphors.map((meta, i) => (
                   <div key={i} className="p-4 rounded-xl bg-[var(--bg-surface)] border border-gray-800 space-y-3 shadow-sm">
                     <div className="flex items-center justify-between text-xs">
-                      <span className="font-bold text-gray-300 flex items-center">
-                        <ImageIcon className="w-3.5 h-3.5 mr-1.5 text-blue-500" />
-                        Metaphor {i + 1}
-                      </span>
+                      <span className="font-bold text-gray-300 flex items-center"><ImageIcon className="w-3.5 h-3.5 mr-1.5 text-blue-500" />Metaphor {i + 1}</span>
                       <span className="text-[10px] text-gray-500">After §{meta.section_index}</span>
                     </div>
                     {meta.url ? (
@@ -703,14 +675,20 @@ export default function PostsPage() {
                   </div>
                 ))
               ) : (
-                <div className="p-4 rounded-xl bg-[var(--bg-surface)] border border-gray-800 text-center text-gray-500 text-xs py-8">
-                  No visual assets.
-                </div>
+                <div className="p-4 rounded-xl bg-[var(--bg-surface)] border border-gray-800 text-center text-gray-500 text-xs py-8">No visual assets.</div>
               )}
             </div>
           </div>
         </div>
       )}
     </div>
+  );
+}
+
+export default function PostsPage() {
+  return (
+    <Suspense>
+      <PostsPageInner />
+    </Suspense>
   );
 }

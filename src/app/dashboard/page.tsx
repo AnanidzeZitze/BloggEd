@@ -25,9 +25,7 @@ interface RecentPost {
 interface CampaignProgress {
   id: string;
   name: string;
-  totalPosts: number;
-  publishedPosts: number;
-  progress: number;
+  seriesCount: number;
 }
 
 interface DashboardStats {
@@ -191,18 +189,10 @@ export default function DashboardPage() {
                   <p className="text-xs text-gray-500 text-center py-2">No campaigns yet.</p>
                 ) : (
                   stats.campaignProgress.map((camp, i) => (
-                    <div key={camp.id} className="space-y-2">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="font-semibold text-gray-300 truncate w-32">{camp.name}</span>
-                        <span className="text-gray-500 text-[10px]">{camp.progress}%</span>
-                      </div>
-                      <div className="w-full h-1.5 rounded-full bg-gray-800 overflow-hidden">
-                        <div
-                          className={`h-full ${CAMPAIGN_COLORS[i % CAMPAIGN_COLORS.length]} rounded-full`}
-                          style={{ width: `${camp.progress}%` }}
-                        />
-                      </div>
-                      <p className="text-[10px] text-gray-500">{camp.publishedPosts} / {camp.totalPosts} posts published</p>
+                    <div key={camp.id} className="flex items-center justify-between text-xs py-1">
+                      <span className={`w-2.5 h-2.5 rounded-full shrink-0 mr-2 ${CAMPAIGN_COLORS[i % CAMPAIGN_COLORS.length]}`} />
+                      <span className="font-semibold text-gray-300 truncate flex-1">{camp.name}</span>
+                      <span className="text-gray-500 text-[10px] ml-2">{camp.seriesCount} series</span>
                     </div>
                   ))
                 )}
