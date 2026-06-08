@@ -13,6 +13,8 @@ import { TemplateType } from "@prisma/client";
 const TOPIC_MAX_LENGTH = 500;
 const CONTEXT_MAX_LENGTH = 2000;
 
+type PublishMode = "none" | "draft" | "live";
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -274,6 +276,8 @@ async function handleRequest(req: NextRequest) {
   let seriesId = searchParams.get("seriesId") ?? "";
   let templateId = searchParams.get("templateId") ?? "";
 
+  let publishMode: PublishMode = "draft";
+
   if (req.method === "POST") {
     try {
       const body = await req.json();
@@ -283,6 +287,9 @@ async function handleRequest(req: NextRequest) {
       }
       if (body?.seriesId && typeof body.seriesId === "string") seriesId = body.seriesId.trim();
       if (body?.templateId && typeof body.templateId === "string") templateId = body.templateId.trim();
+      if (body?.publishMode === "none" || body?.publishMode === "draft" || body?.publishMode === "live") {
+        publishMode = body.publishMode as PublishMode;
+      }
     } catch {
       // not JSON — ignore
     }
@@ -436,6 +443,7 @@ async function handleRequest(req: NextRequest) {
     console.log(`[Generate] Post generated: "${parsedPost.title}" (${parsedPost.sections.length} sections)`);
 
     // 8. Generate and upload images
+    const imageErrors: string[] = [];
     for (let i = 0; i < parsedPost.image_metaphors.length; i++) {
       const metaphor = parsedPost.image_metaphors[i];
       const imagenPrompt = buildImagePrompt(parsedPost.title, metaphor.scene_description, i);
@@ -450,8 +458,14 @@ async function handleRequest(req: NextRequest) {
         const img = imgResponse.generatedImages?.[0]?.image?.imageBytes;
         if (img) {
           metaphor.url = await uploadImageToHost(img);
+        } else {
+          const msg = `Image ${i + 1}: generation returned no bytes`;
+          imageErrors.push(msg);
+          console.error(`[Generate] ${msg}`);
         }
       } catch (imgErr) {
+        const msg = `Image ${i + 1}: ${imgErr instanceof Error ? imgErr.message : String(imgErr)}`;
+        imageErrors.push(msg);
         console.error(`[Generate] Image ${i + 1} failed:`, imgErr);
       }
     }
@@ -463,31 +477,35 @@ async function handleRequest(req: NextRequest) {
     let bloggerResult = null;
     let bloggerError = null;
 
-    try {
-      const blogger = await getBloggerClient(workspace.id);
-      const blogId = workspace.bloggerBlogId ?? process.env.BLOG_ID ?? "";
+    if (publishMode !== "none") {
+      try {
+        const blogger = await getBloggerClient(workspace.id);
+        const blogId = workspace.bloggerBlogId ?? process.env.BLOG_ID ?? "";
 
-      if (!blogId) throw new Error("No Blogger blog ID configured for this workspace.");
+        if (!blogId) throw new Error("No Blogger blog ID configured for this workspace.");
 
-      const res = await blogger.posts.insert({
-        blogId,
-        isDraft: true,
-        requestBody: {
-          title: parsedPost.title,
-          content: htmlContent,
-          labels: ["AI Generated", "Signal & Noise"],
-        },
-      });
-      bloggerResult = res.data;
-    } catch (blogErr: unknown) {
-      bloggerError = blogErr instanceof Error ? blogErr.message : String(blogErr);
-      console.error("[Generate] Blogger publish failed:", blogErr);
+        const isDraft = publishMode === "draft";
+        const res = await blogger.posts.insert({
+          blogId,
+          isDraft,
+          requestBody: {
+            title: parsedPost.title,
+            content: htmlContent,
+            labels: ["AI Generated", "Signal & Noise"],
+          },
+        });
+        bloggerResult = res.data;
+      } catch (blogErr: unknown) {
+        bloggerError = blogErr instanceof Error ? blogErr.message : String(blogErr);
+        console.error("[Generate] Blogger publish failed:", blogErr);
+      }
     }
 
     // 10. Save post to DB (if a series is associated)
     let savedPostId: string | null = null;
     if (seriesId && series) {
       try {
+        const isPublished = publishMode === "live" && bloggerResult != null;
         const savedPost = await db.post.create({
           data: {
             seriesId,
@@ -496,10 +514,10 @@ async function handleRequest(req: NextRequest) {
             subtitle: parsedPost.subtitle ?? null,
             postInputContext: postInputContext || null,
             content: parsedPost as unknown as Parameters<typeof db.post.create>[0]["data"]["content"],
-            status: "DRAFT",
+            status: isPublished ? "PUBLISHED" : "DRAFT",
             bloggerUrl: bloggerResult?.url ?? null,
             bloggerId: bloggerResult?.id ?? null,
-            publishedAt: null,
+            publishedAt: isPublished ? new Date() : null,
           },
         });
         savedPostId = savedPost.id;
@@ -508,6 +526,15 @@ async function handleRequest(req: NextRequest) {
       }
     }
 
+    const message =
+      publishMode === "none"
+        ? "Generated post saved to database (not pushed to Blogger)."
+        : bloggerResult
+          ? publishMode === "live"
+            ? "Generated and published live to Blogger."
+            : "Generated and published draft to Blogger."
+          : "Generated post locally; Blogger publish failed.";
+
     return NextResponse.json({
       success: true,
       topic,
@@ -515,9 +542,8 @@ async function handleRequest(req: NextRequest) {
       generated_post: parsedPost,
       blogger_post: bloggerResult,
       blogger_error: bloggerError,
-      message: bloggerResult
-        ? "Generated and published draft to Blogger."
-        : "Generated post locally; Blogger publish failed.",
+      image_errors: imageErrors,
+      message,
     });
   } catch (err: unknown) {
     console.error("[Generate] Pipeline error:", err);

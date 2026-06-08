@@ -151,19 +151,23 @@ export async function POST(req: NextRequest) {
   }
 
   // 4. Parse body
-  let body: { post?: GeneratedPost; isDraft?: boolean };
+  let body: {
+    post?: GeneratedPost;
+    isDraft?: boolean;
+    bloggerId?: string;
+    publishLive?: boolean;
+    postDbId?: string;
+  };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ success: false, error: "Invalid JSON body." }, { status: 400 });
   }
 
-  const post = body.post;
-  if (!post?.title || !Array.isArray(post.sections)) {
-    return NextResponse.json({ success: false, error: "Missing or invalid post content." }, { status: 400 });
-  }
-
   const isDraft = body.isDraft !== false;
+  const bloggerId = typeof body.bloggerId === "string" ? body.bloggerId : null;
+  const publishLive = body.publishLive === true;
+  const postDbId = typeof body.postDbId === "string" ? body.postDbId : null;
 
   try {
     const blogger = await getBloggerClient(workspace.id);
@@ -176,22 +180,55 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const htmlContent = compilePostToHtml(post);
+    let bloggerPostData: { url?: string | null; id?: string | null } = {};
+    let message = "";
 
-    const res = await blogger.posts.insert({
-      blogId,
-      isDraft,
-      requestBody: {
-        title: post.title,
-        content: htmlContent,
-        labels: ["AI Generated", "Signal & Noise"],
-      },
-    });
+    // Mode A: publish an existing Blogger draft to live
+    if (bloggerId && publishLive) {
+      const res = await blogger.posts.publish({ blogId, postId: bloggerId });
+      bloggerPostData = res.data;
+      message = "Post published live to Blogger.";
+    } else {
+      // Mode B: insert a new post (draft or live)
+      const post = body.post;
+      if (!post?.title || !Array.isArray(post.sections)) {
+        return NextResponse.json({ success: false, error: "Missing or invalid post content." }, { status: 400 });
+      }
+
+      const htmlContent = compilePostToHtml(post);
+      const res = await blogger.posts.insert({
+        blogId,
+        isDraft,
+        requestBody: {
+          title: post.title,
+          content: htmlContent,
+          labels: ["AI Generated", "Signal & Noise"],
+        },
+      });
+      bloggerPostData = res.data;
+      message = isDraft ? "Draft published to Blogger." : "Post published live to Blogger.";
+    }
+
+    // Patch the DB post if a DB id was provided
+    if (postDbId) {
+      try {
+        await db.post.update({
+          where: { id: postDbId },
+          data: {
+            status: "PUBLISHED",
+            publishedAt: new Date(),
+            bloggerUrl: bloggerPostData.url ?? undefined,
+          },
+        });
+      } catch (dbErr) {
+        console.error("[Publish] DB patch failed:", dbErr);
+      }
+    }
 
     return NextResponse.json({
       success: true,
-      blogger_post: res.data,
-      message: isDraft ? "Draft published to Blogger." : "Post published live to Blogger.",
+      blogger_post: bloggerPostData,
+      message,
     });
   } catch (err: unknown) {
     console.error("[Publish] Error:", err);

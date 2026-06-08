@@ -5,8 +5,13 @@ import { useSearchParams } from "next/navigation";
 import {
   Plus, Sparkles, Loader2, Check, AlertCircle, Edit3, Send,
   ArrowLeft, Globe, Image as ImageIcon, Save, Trash2, Calendar,
+  RefreshCw, X,
 } from "lucide-react";
 import { useWorkspace } from "@/lib/workspace-context";
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 
 interface PostSection {
   heading: string;
@@ -44,6 +49,15 @@ interface CampaignOption { id: string; name: string; }
 interface SeriesOption { id: string; name: string; campaignId: string; }
 interface TemplateOption { id: string; name: string; description: string; }
 
+type PublishMode = "none" | "draft" | "live";
+
+// Blogger status known to the UI (synced via the status endpoint)
+type BloggerStatusKind = "LIVE" | "DRAFT" | "UNKNOWN";
+
+// ---------------------------------------------------------------------------
+// Inner page component
+// ---------------------------------------------------------------------------
+
 function PostsPageInner() {
   const { activeWorkspaceId } = useWorkspace();
   const searchParams = useSearchParams();
@@ -65,7 +79,9 @@ function PostsPageInner() {
   const [selectedSeriesId, setSelectedSeriesId] = useState("");
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [postInputContext, setPostInputContext] = useState("");
+  const [publishMode, setPublishMode] = useState<PublishMode>("draft");
   const [generating, setGenerating] = useState(false);
+  const [imageErrorsBanner, setImageErrorsBanner] = useState<string | null>(null);
 
   const [editingPost, setEditingPost] = useState<PostItem | null>(null);
   const [editedTitle, setEditedTitle] = useState("");
@@ -75,6 +91,16 @@ function PostsPageInner() {
   const [scheduling, setScheduling] = useState(false);
   const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  const [publishingLive, setPublishingLive] = useState(false);
+
+  // Blogger live status panel
+  const [bloggerStatus, setBloggerStatus] = useState<BloggerStatusKind>("UNKNOWN");
+  const [bloggerStatusUrl, setBloggerStatusUrl] = useState<string | null>(null);
+  const [syncingStatus, setSyncingStatus] = useState(false);
+
+  // ---------------------------------------------------------------------------
+  // Data loading
+  // ---------------------------------------------------------------------------
 
   const loadPosts = useCallback(async () => {
     if (!activeWorkspaceId) return;
@@ -154,29 +180,58 @@ function PostsPageInner() {
     }
   }, [campaigns, selectedCampaignId, searchParams]);
 
+  // Reset blogger status panel when editing post changes
+  useEffect(() => {
+    if (editingPost) {
+      setBloggerStatus("UNKNOWN");
+      setBloggerStatusUrl(editingPost.bloggerUrl);
+    }
+  }, [editingPost?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ---------------------------------------------------------------------------
+  // Helpers
+  // ---------------------------------------------------------------------------
+
   const showSuccess = (msg: string) => {
     setGlobalSuccess(msg);
     setTimeout(() => setGlobalSuccess(null), 4000);
   };
+
+  // ---------------------------------------------------------------------------
+  // Generator
+  // ---------------------------------------------------------------------------
 
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!topic.trim() || !activeWorkspaceId || !selectedSeriesId) return;
     setGenerating(true);
     setGlobalError(null);
+    setImageErrorsBanner(null);
     try {
       const res = await fetch(`/api/generate/test?workspaceId=${activeWorkspaceId}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topic, postInputContext, seriesId: selectedSeriesId, templateId: selectedTemplateId || undefined }),
+        body: JSON.stringify({
+          topic,
+          postInputContext,
+          seriesId: selectedSeriesId,
+          templateId: selectedTemplateId || undefined,
+          publishMode,
+        }),
       });
       const data = await res.json();
       if (!res.ok || !data.success) throw new Error(data.error ?? "Generation failed");
+
+      // Surface image errors if any
+      if (Array.isArray(data.image_errors) && data.image_errors.length > 0) {
+        setImageErrorsBanner(data.image_errors[0] as string);
+      }
 
       const generated: GeneratedPost = data.generated_post;
       const series = seriesOptions.find((s) => s.id === selectedSeriesId);
       const campaign = campaigns.find((c) => c.id === selectedCampaignId);
 
+      const isLivePublish = publishMode === "live" && data.blogger_post != null;
       const newPost: PostItem = {
         id: data.post_id ?? `local-${Date.now()}`,
         title: generated.title,
@@ -184,7 +239,7 @@ function PostsPageInner() {
         seriesId: selectedSeriesId,
         seriesName: series?.name ?? "",
         campaignName: campaign?.name ?? "",
-        status: "DRAFT",
+        status: isLivePublish ? "PUBLISHED" : "DRAFT",
         createdAt: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
         bloggerUrl: data.blogger_post?.url ?? null,
         bloggerId: data.blogger_post?.id ?? null,
@@ -201,6 +256,10 @@ function PostsPageInner() {
     }
   };
 
+  // ---------------------------------------------------------------------------
+  // Editor helpers
+  // ---------------------------------------------------------------------------
+
   const loadIntoEditor = (post: PostItem) => {
     setEditingPost(post);
     setEditedTitle(post.title);
@@ -211,6 +270,7 @@ function PostsPageInner() {
     setEditedSections(sections);
     setView("editor");
     setGlobalError(null);
+    setImageErrorsBanner(null);
   };
 
   const handleSectionHeadingChange = (index: number, val: string) => {
@@ -234,6 +294,10 @@ function PostsPageInner() {
   const handleAddSection = () => {
     setEditedSections((prev) => [...prev, { heading: "New Section", paragraphs: [""] }]);
   };
+
+  // ---------------------------------------------------------------------------
+  // Save
+  // ---------------------------------------------------------------------------
 
   const handleSave = async () => {
     if (!editingPost) return;
@@ -290,7 +354,11 @@ function PostsPageInner() {
     }
   };
 
-  const handlePublish = async () => {
+  // ---------------------------------------------------------------------------
+  // Push Draft (existing behaviour — creates Blogger draft)
+  // ---------------------------------------------------------------------------
+
+  const handlePushDraft = async () => {
     if (!editingPost || !activeWorkspaceId) return;
     setPublishing(true);
     setGlobalError(null);
@@ -304,7 +372,11 @@ function PostsPageInner() {
       const res = await fetch(`/api/publish?workspaceId=${activeWorkspaceId}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ post: postPayload, isDraft: true }),
+        body: JSON.stringify({
+          post: postPayload,
+          isDraft: true,
+          postDbId: editingPost.id.startsWith("local-") ? undefined : editingPost.id,
+        }),
       });
       const data = await res.json();
       if (!res.ok || !data.success) throw new Error(data.error ?? "Publish failed");
@@ -316,20 +388,115 @@ function PostsPageInner() {
         await fetch(`/api/posts?id=${editingPost.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status: "PUBLISHED", bloggerUrl, bloggerId }),
+          body: JSON.stringify({ bloggerUrl, bloggerId }),
         });
       }
 
-      const updated = { ...editingPost, status: "PUBLISHED", bloggerUrl, bloggerId };
+      const updated = { ...editingPost, bloggerUrl, bloggerId };
       setEditingPost(updated);
+      setBloggerStatusUrl(bloggerUrl);
+      setBloggerStatus("DRAFT");
       setPosts((prev) => prev.map((p) => (p.id === editingPost.id ? updated : p)));
-      showSuccess("Published to Blogger drafts.");
+      showSuccess("Pushed to Blogger drafts.");
     } catch (err) {
       setGlobalError(err instanceof Error ? err.message : "Publish failed");
     } finally {
       setPublishing(false);
     }
   };
+
+  // ---------------------------------------------------------------------------
+  // Publish Live
+  // ---------------------------------------------------------------------------
+
+  const handlePublishLive = async () => {
+    if (!editingPost || !activeWorkspaceId) return;
+    setPublishingLive(true);
+    setGlobalError(null);
+
+    try {
+      let bloggerUrl: string | null = null;
+      let bloggerId: string | null = editingPost.bloggerId;
+
+      if (editingPost.bloggerId) {
+        // Post already on Blogger as a draft — publish it via blogger-status endpoint
+        const params = new URLSearchParams({ workspaceId: activeWorkspaceId, bloggerId: editingPost.bloggerId });
+        if (!editingPost.id.startsWith("local-")) params.set("postDbId", editingPost.id);
+
+        const res = await fetch(`/api/blogger-status?${params.toString()}`, { method: "POST" });
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.error ?? "Publish live failed");
+        bloggerUrl = data.data?.url ?? editingPost.bloggerUrl;
+      } else {
+        // Post not on Blogger yet — insert directly as live
+        const postPayload = {
+          ...(editingPost.content ?? {}),
+          title: editedTitle,
+          subtitle: editedSubtitle,
+          sections: editedSections,
+        };
+        const res = await fetch(`/api/publish?workspaceId=${activeWorkspaceId}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            post: postPayload,
+            isDraft: false,
+            postDbId: editingPost.id.startsWith("local-") ? undefined : editingPost.id,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.error ?? "Publish live failed");
+        bloggerUrl = data.blogger_post?.url ?? null;
+        bloggerId = data.blogger_post?.id ?? null;
+      }
+
+      // Patch DB status
+      if (!editingPost.id.startsWith("local-")) {
+        await fetch(`/api/posts?id=${editingPost.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "PUBLISHED", bloggerUrl, bloggerId }),
+        });
+      }
+
+      const updated = { ...editingPost, status: "PUBLISHED", bloggerUrl, bloggerId };
+      setEditingPost(updated);
+      setBloggerStatus("LIVE");
+      setBloggerStatusUrl(bloggerUrl);
+      setPosts((prev) => prev.map((p) => (p.id === editingPost.id ? updated : p)));
+      showSuccess("Published live to Blogger.");
+    } catch (err) {
+      setGlobalError(err instanceof Error ? err.message : "Publish live failed");
+    } finally {
+      setPublishingLive(false);
+    }
+  };
+
+  // ---------------------------------------------------------------------------
+  // Sync Blogger status
+  // ---------------------------------------------------------------------------
+
+  const handleSyncBloggerStatus = async () => {
+    if (!editingPost?.bloggerId || !activeWorkspaceId) return;
+    setSyncingStatus(true);
+    try {
+      const res = await fetch(
+        `/api/blogger-status?workspaceId=${activeWorkspaceId}&bloggerId=${editingPost.bloggerId}`
+      );
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error ?? "Sync failed");
+      setBloggerStatus(data.data.status === "LIVE" ? "LIVE" : "DRAFT");
+      setBloggerStatusUrl(data.data.url ?? editingPost.bloggerUrl);
+    } catch (err) {
+      setGlobalError(err instanceof Error ? err.message : "Status sync failed");
+    } finally {
+      setSyncingStatus(false);
+    }
+  };
+
+  // ---------------------------------------------------------------------------
+  // Schedule
+  // ---------------------------------------------------------------------------
 
   const handleSchedule = async () => {
     if (!editingPost || !scheduleAt) return;
@@ -362,6 +529,10 @@ function PostsPageInner() {
     }
   };
 
+  // ---------------------------------------------------------------------------
+  // Delete
+  // ---------------------------------------------------------------------------
+
   const handleDeletePost = async (id: string) => {
     if (!confirm("Delete this post?")) return;
     if (!id.startsWith("local-")) {
@@ -370,8 +541,54 @@ function PostsPageInner() {
     setPosts((prev) => prev.filter((p) => p.id !== id));
   };
 
-  const statusBadge = (s: string) => s === "PUBLISHED" ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : s === "SCHEDULED" ? "bg-purple-500/10 text-purple-400 border-purple-500/20" : "bg-amber-500/10 text-amber-400 border-amber-500/20";
-  const statusLabel = (s: string) => s === "PUBLISHED" ? "Published" : s === "SCHEDULED" ? "Scheduled" : "Draft";
+  // ---------------------------------------------------------------------------
+  // Status badge helpers
+  // ---------------------------------------------------------------------------
+
+  const statusBadge = (s: string) =>
+    s === "PUBLISHED"
+      ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+      : s === "SCHEDULED"
+        ? "bg-purple-500/10 text-purple-400 border-purple-500/20"
+        : "bg-amber-500/10 text-amber-400 border-amber-500/20";
+
+  const statusLabel = (s: string) =>
+    s === "PUBLISHED" ? "Published" : s === "SCHEDULED" ? "Scheduled" : "Draft";
+
+  // Blogger indicator for the list
+  const bloggerIndicator = (post: PostItem) => {
+    if (!post.bloggerId) {
+      return <span className="text-[9px] text-gray-600 font-medium">Not on Blogger</span>;
+    }
+    if (post.status === "PUBLISHED") {
+      return (
+        <span className="flex items-center space-x-1 text-[9px] text-emerald-400 font-medium">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />
+          <span>Live</span>
+        </span>
+      );
+    }
+    return (
+      <span className="flex items-center space-x-1 text-[9px] text-amber-400 font-medium">
+        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />
+        <span>Blogger draft</span>
+      </span>
+    );
+  };
+
+  // Blogger status panel label
+  const bloggerStatusLabel = () => {
+    if (!editingPost?.bloggerId) return { text: "Not on Blogger", color: "text-gray-500" };
+    if (bloggerStatus === "LIVE") return { text: "Live on Blogger", color: "text-emerald-400" };
+    if (bloggerStatus === "DRAFT") return { text: "Draft on Blogger", color: "text-amber-400" };
+    // UNKNOWN but bloggerId set
+    if (editingPost.status === "PUBLISHED") return { text: "Live (DB)", color: "text-emerald-400" };
+    return { text: "Draft on Blogger", color: "text-amber-400" };
+  };
+
+  // ---------------------------------------------------------------------------
+  // Render
+  // ---------------------------------------------------------------------------
 
   return (
     <div className="space-y-6">
@@ -425,9 +642,13 @@ function PostsPageInner() {
                         </div>
                       </div>
                       <div className="flex items-center space-x-2 shrink-0">
-                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-semibold border ${statusBadge(post.status)}`}>
-                          {statusLabel(post.status)}
-                        </span>
+                        {/* Two-line status display */}
+                        <div className="flex flex-col items-end space-y-0.5">
+                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-semibold border ${statusBadge(post.status)}`}>
+                            {statusLabel(post.status)}
+                          </span>
+                          {bloggerIndicator(post)}
+                        </div>
                         <button onClick={() => loadIntoEditor(post)} className="p-1.5 rounded bg-gray-800 hover:bg-[var(--accent)] text-gray-400 hover:text-white transition-colors" title="Open Editor">
                           <Edit3 className="w-3.5 h-3.5" />
                         </button>
@@ -514,6 +735,35 @@ function PostsPageInner() {
                 )}
               </div>
 
+              {/* Publish mode segmented control */}
+              <div>
+                <label className="block text-xs text-gray-400 font-semibold mb-2">After generating…</label>
+                <div className="flex rounded-lg overflow-hidden border border-gray-700 text-xs font-semibold">
+                  {(
+                    [
+                      { value: "none", label: "Save to DB only" },
+                      { value: "draft", label: "Push to Blogger draft" },
+                      { value: "live", label: "Publish live on Blogger" },
+                    ] as { value: PublishMode; label: string }[]
+                  ).map(({ value, label }) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setPublishMode(value)}
+                      className={`flex-1 py-2 px-2 text-center transition-colors ${
+                        publishMode === value
+                          ? value === "live"
+                            ? "bg-emerald-600 text-white"
+                            : "bg-[var(--accent)] text-white"
+                          : "bg-[var(--bg-elevated)] text-gray-400 hover:text-white hover:bg-gray-700"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <div>
                 <label className="block text-xs text-gray-400 font-semibold mb-1">Topic / Title Prompt *</label>
                 <input
@@ -585,11 +835,29 @@ function PostsPageInner() {
               <button onClick={handleSave} disabled={saving} className="flex items-center bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs font-semibold px-3 py-2 rounded-lg transition-colors border border-gray-700 disabled:opacity-60">
                 {saving ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Save className="w-3.5 h-3.5 mr-1.5" />}Save
               </button>
-              <button onClick={handlePublish} disabled={publishing} className="flex items-center bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-white text-xs font-semibold px-3.5 py-2 rounded-lg shadow-md transition-colors">
-                {publishing ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Send className="w-3.5 h-3.5 mr-1.5" />}Publish Draft
+              {/* Push Draft button */}
+              <button onClick={handlePushDraft} disabled={publishing} className="flex items-center bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs font-semibold px-3.5 py-2 rounded-lg transition-colors border border-gray-700 disabled:opacity-50">
+                {publishing ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Send className="w-3.5 h-3.5 mr-1.5" />}Push Draft
+              </button>
+              {/* Publish Live button */}
+              <button onClick={handlePublishLive} disabled={publishingLive} className="flex items-center bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-semibold px-3.5 py-2 rounded-lg shadow-md transition-colors">
+                {publishingLive ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Globe className="w-3.5 h-3.5 mr-1.5" />}Publish Live
               </button>
             </div>
           </div>
+
+          {/* Image errors banner */}
+          {imageErrorsBanner && (
+            <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs flex items-start justify-between">
+              <div className="flex items-start">
+                <AlertCircle className="w-4 h-4 mr-2 mt-0.5 flex-shrink-0" />
+                <span>Images could not be generated: {imageErrorsBanner}</span>
+              </div>
+              <button onClick={() => setImageErrorsBanner(null)} className="ml-3 flex-shrink-0 hover:text-amber-200 transition-colors">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
 
           <div className="flex items-center space-x-2 p-3 rounded-lg bg-[var(--bg-surface)] border border-gray-800">
             <Calendar className="w-4 h-4 text-purple-400 flex-shrink-0" />
@@ -650,6 +918,7 @@ function PostsPageInner() {
               </button>
             </div>
 
+            {/* Sidebar */}
             <div className="space-y-6">
               <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">AI Image Metaphors</h3>
               {editingPost.content?.image_metaphors?.length ? (
@@ -677,6 +946,46 @@ function PostsPageInner() {
               ) : (
                 <div className="p-4 rounded-xl bg-[var(--bg-surface)] border border-gray-800 text-center text-gray-500 text-xs py-8">No visual assets.</div>
               )}
+
+              {/* Blogger Status card */}
+              <div className="p-4 rounded-xl bg-[var(--bg-surface)] border border-gray-800 space-y-3 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold text-gray-300 flex items-center">
+                    <Globe className="w-3.5 h-3.5 mr-1.5 text-blue-400" />Blogger Status
+                  </h4>
+                  {editingPost.bloggerId && (
+                    <button
+                      onClick={handleSyncBloggerStatus}
+                      disabled={syncingStatus}
+                      className="p-1 rounded hover:bg-gray-700 text-gray-500 hover:text-gray-300 transition-colors"
+                      title="Sync status from Blogger"
+                    >
+                      {syncingStatus ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                    </button>
+                  )}
+                </div>
+
+                <div className={`text-xs font-semibold ${bloggerStatusLabel().color}`}>
+                  {bloggerStatusLabel().text}
+                </div>
+
+                {bloggerStatusUrl && (
+                  <a
+                    href={bloggerStatusUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[10px] text-blue-400 hover:text-blue-300 underline break-all leading-snug block"
+                  >
+                    {bloggerStatusUrl}
+                  </a>
+                )}
+
+                {!editingPost.bloggerId && (
+                  <p className="text-[10px] text-gray-600 leading-snug">
+                    Push to Blogger using the toolbar buttons above.
+                  </p>
+                )}
+              </div>
             </div>
           </div>
         </div>
