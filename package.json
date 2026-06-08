@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "prisma generate --no-engine && prisma db push && next build --turbopack",
+    "build": "prisma generate --no-engine && prisma db push --accept-data-loss && next build --turbopack",
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
