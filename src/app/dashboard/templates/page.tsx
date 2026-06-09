@@ -490,6 +490,23 @@ export default function TemplatesPage() {
                 <option value="plain">Plain</option>
               </select>
             </div>
+            <div>
+              <label className="block text-xs text-gray-400 font-semibold mb-1">
+                Image Visual Style
+                <span className="ml-1 font-normal text-gray-500">— drives Imagen prompt aesthetics</span>
+              </label>
+              <select value={style.visualStyle ?? "none"} onChange={(e) => setStyle((prev) => ({ ...prev, visualStyle: e.target.value as import("@/lib/post-recipe").VisualStyle }))}
+                className="w-full bg-[var(--bg-elevated)] border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[var(--accent)]">
+                <option value="none">Auto (inferred from post topic)</option>
+                <option value="editorial_dark">Editorial Dark — cinematic, chiaroscuro, navy + crimson</option>
+                <option value="editorial_light">Editorial Light — airy, natural light, muted warm tones</option>
+                <option value="brutalist">Brutalist — raw concrete, stark geometry, high contrast</option>
+                <option value="luxury_dark">Luxury Dark — black background, specular highlights, gold</option>
+                <option value="luxury_light">Luxury Light — high-key, marble + linen, champagne tones</option>
+                <option value="technical">Technical — blueprint aesthetic, navy + copper, geometric</option>
+                <option value="cinematic">Cinematic — volumetric fog, anamorphic, teal-orange grade</option>
+              </select>
+            </div>
           </div>
           <div className="mt-4 p-4 rounded-lg border border-gray-800 bg-[var(--bg-deep)]">
             <p className="text-[10px] text-gray-500 font-semibold uppercase tracking-wider mb-2">Preview</p>

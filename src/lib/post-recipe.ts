@@ -38,11 +38,22 @@ export interface PostRecipe {
   voice?: PostRecipeVoice;
 }
 
+export type VisualStyle =
+  | "editorial_dark"
+  | "editorial_light"
+  | "brutalist"
+  | "luxury_dark"
+  | "luxury_light"
+  | "technical"
+  | "cinematic"
+  | "none";
+
 export interface HtmlStyleConfig {
   headingColor?: string;
   accentColor?: string;
   fontBody?: string;
   subtitleStyle?: SubtitleStyle;
+  visualStyle?: VisualStyle;
 }
 
 export const DEFAULT_POST_RECIPE: PostRecipe = {

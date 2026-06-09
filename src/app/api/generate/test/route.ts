@@ -126,11 +126,44 @@ async function uploadImageToHost(base64Image: string): Promise<string> {
 // HTML compiler (XSS-safe)
 // ---------------------------------------------------------------------------
 
+function renderImageTag(url: string, title: string): string {
+  return (
+    `<div style="text-align:center;margin:2em 0;">` +
+    `<img src="${url}" alt="${escapeHtml("Illustration for " + title)}" ` +
+    `style="max-width:100%;height:auto;border-radius:8px;box-shadow:0 4px 24px rgba(0,0,0,0.12);" /></div>`
+  );
+}
+
 function compilePostToHtml(post: GeneratedPost, style: HtmlStyleConfig = DEFAULT_HTML_STYLE): string {
   const heading = style.headingColor ?? "#1a3c5e";
   const accent = style.accentColor ?? "#f97316";
   const font = style.fontBody ?? "Georgia, serif";
   const subtitleStyle = style.subtitleStyle ?? "italic_bordered";
+
+  // Build a map: section_index → image url (only images that have a url)
+  // section_index === 0 means "before section 0" (hero position)
+  // section_index === N means "after section N-1" (insert after that section renders)
+  const imageByIndex = new Map<number, string>();
+  for (const m of post.image_metaphors) {
+    if (m.url) {
+      const url = sanitizeImageUrl(m.url);
+      if (url) imageByIndex.set(m.section_index, url);
+    }
+  }
+
+  // Fallback: if Gemini assigned all images to section_index 0 (common), spread them
+  // — put the second one at the midpoint automatically so it still lands in the body.
+  if (imageByIndex.size >= 2) {
+    const indices = [...imageByIndex.keys()].sort((a, b) => a - b);
+    // If both are at the same index, move the second to midpoint
+    if (indices.length === 2 && indices[0] === indices[1]) {
+      const midpoint = Math.max(1, Math.floor(post.sections.length / 2));
+      const entries = [...imageByIndex.entries()];
+      imageByIndex.clear();
+      imageByIndex.set(entries[0][0], entries[0][1]);
+      imageByIndex.set(midpoint, entries[1][1]);
+    }
+  }
 
   const parts: string[] = [];
 
@@ -141,18 +174,9 @@ function compilePostToHtml(post: GeneratedPost, style: HtmlStyleConfig = DEFAULT
     parts.push(`<p style="${subtitleCss}">${escapeHtml(post.subtitle)}</p>`);
   }
 
-  const img1 = post.image_metaphors.find((m) => m.section_index === 0);
-  const img1Url = img1?.url ? sanitizeImageUrl(img1.url) : "";
-  if (img1Url) {
-    parts.push(
-      `<div style="text-align:center;margin:1.5em 0;">` +
-      `<img src="${img1Url}" alt="${escapeHtml("Illustration for " + post.title)}" ` +
-      `style="max-width:100%;height:auto;border-radius:8px;" /></div>`
-    );
-  }
-
-  const totalSections = post.sections.length;
-  const img2At = Math.max(1, Math.floor(totalSections / 2));
+  // Hero image: section_index === 0 goes before any sections
+  const heroUrl = imageByIndex.get(0);
+  if (heroUrl) parts.push(renderImageTag(heroUrl, post.title));
 
   post.sections.forEach((section, index) => {
     if (section.heading) {
@@ -160,17 +184,10 @@ function compilePostToHtml(post: GeneratedPost, style: HtmlStyleConfig = DEFAULT
     }
     section.paragraphs.forEach((para) => parts.push(`<p>${escapeHtml(para)}</p>`));
 
-    if (index === img2At) {
-      const img2 = post.image_metaphors.find((m) => m.section_index > 0);
-      const img2Url = img2?.url ? sanitizeImageUrl(img2.url) : "";
-      if (img2Url) {
-        parts.push(
-          `<div style="text-align:center;margin:1.5em 0;">` +
-          `<img src="${img2Url}" alt="${escapeHtml("Illustration for " + post.title)}" ` +
-          `style="max-width:100%;height:auto;border-radius:8px;" /></div>`
-        );
-      }
-    }
+    // After rendering section `index`, check for an image placed at index+1
+    // (section_index N means "after the Nth section" in 1-based terms)
+    const afterUrl = imageByIndex.get(index + 1);
+    if (afterUrl) parts.push(renderImageTag(afterUrl, post.title));
   });
 
   return `<div>${parts.join("\n\n")}</div>`
@@ -181,57 +198,120 @@ function compilePostToHtml(post: GeneratedPost, style: HtmlStyleConfig = DEFAULT
 // ---------------------------------------------------------------------------
 // Image prompt helpers
 // ---------------------------------------------------------------------------
+// Image prompt helpers
+// ---------------------------------------------------------------------------
 
-function inferCategory(title: string): string {
-  const t = title.toLowerCase();
-  if (/\b(tool|stack|software|vendor)\b/.test(t)) return "tools";
-  if (/\b(code|system|architecture|data)\b/.test(t)) return "technical";
-  if (/\b(ai|agent|artificial|llm|intent|advertising)\b/.test(t)) return "ai";
-  if (/\b(privacy|governance|security|cookie)\b/.test(t)) return "privacy";
-  if (/\b(career|job|analyst|role|hire)\b/.test(t)) return "career";
-  if (/\b(measure|analytics|metric|attribution|predictive)\b/.test(t)) return "measurement";
-  return "opinion";
+// Score-based category inference across title + subtitle + first section heading
+function inferCategory(title: string, subtitle?: string, firstHeading?: string): string {
+  const corpus = [title, subtitle ?? "", firstHeading ?? ""].join(" ").toLowerCase();
+
+  const patterns: Array<[string, RegExp]> = [
+    ["ai",          /\b(ai|artificial intelligence|machine learning|llm|large language|agent|generative|gpt|claude|gemini|openai|deepmind|neural|intent|advertising|automation)\b/],
+    ["technical",   /\b(code|coding|system|architecture|infrastructure|api|database|backend|frontend|algorithm|data pipeline|engineering|devops|cloud|kubernetes|microservice)\b/],
+    ["tools",       /\b(tool|stack|software|platform|vendor|saas|crm|cms|product|feature|integration|workflow|plugin|extension)\b/],
+    ["privacy",     /\b(privacy|gdpr|ccpa|security|compliance|governance|cookie|data protection|breach|regulation|consent|audit)\b/],
+    ["career",      /\b(career|job|hire|hiring|role|team|leadership|manager|analyst|freelance|salary|skill|talent|remote work|culture)\b/],
+    ["measurement", /\b(measure|metric|analytics|attribution|kpi|dashboard|report|tracking|conversion|roi|funnel|a\/b test|experiment|predictive|forecast)\b/],
+    ["opinion",     /\b(why|wrong|truth|myth|future|strategy|opinion|perspective|take|change|should|must|overrated|underrated|reality|lesson)\b/],
+  ];
+
+  // Score each category by number of regex matches in corpus
+  let bestCategory = "opinion";
+  let bestScore = 0;
+  for (const [cat, pattern] of patterns) {
+    const matches = corpus.match(new RegExp(pattern.source, "gi"));
+    const score = matches ? matches.length : 0;
+    if (score > bestScore) { bestScore = score; bestCategory = cat; }
+  }
+  return bestCategory;
 }
 
-function buildImagePrompt(postTitle: string, sceneDesc: string, imageIndex: number): string {
-  const category = inferCategory(postTitle);
+// Map VisualStyle → [style directive, lighting]
+const VISUAL_STYLE_OVERRIDES: Record<string, [string, string]> = {
+  editorial_dark: [
+    "cinematic editorial photography, 24mm wide-angle, high dynamic range, desaturated film grade",
+    "chiaroscuro single overhead source, deep navy and cold charcoal palette with electric crimson accent",
+  ],
+  editorial_light: [
+    "clean editorial photography, airy natural light, soft shadows, muted warm tones",
+    "diffused north-facing window light, warm white and sand palette with slate accent",
+  ],
+  brutalist: [
+    "bold graphic illustration, raw concrete textures, stark geometric forms, high contrast",
+    "flat fluorescent overhead, pure black and white with single vivid accent color",
+  ],
+  luxury_dark: [
+    "ultra-premium product photography, deep black background, specular highlights on rich materials",
+    "single narrow spotlight from upper right, near-total darkness, obsidian and gold palette",
+  ],
+  luxury_light: [
+    "high-key luxury editorial, soft diffused fill, marble and linen surfaces, muted elegance",
+    "wraparound studio softbox, creamy warm white with champagne gold accents",
+  ],
+  technical: [
+    "large-format architectural blueprint aesthetic, deep navy drafting paper, white and copper ink",
+    "even flat drafting table lamp light, deep navy and copper palette, clean geometric shadow",
+  ],
+  cinematic: [
+    "ultra-photorealistic cinematic render, anamorphic lens flare, volumetric fog, film grain",
+    "practitioner rim light and practical lamp fill, teal-orange complementary grade",
+  ],
+};
 
-  const styleMap: Record<string, [string, string]> = {
-    opinion: [
-      "cinematic editorial photography, 24mm wide-angle, high dynamic range, film color grading",
-      "chiaroscuro single overhead light source, deep navy and cold gray palette with electric crimson accent",
-    ],
-    tools: [
-      "detailed isometric illustration, hyperrealistic material textures, dramatic overhead industrial lighting",
-      "warm amber pendant lamps, pools of light on dark concrete, brushed steel and warm walnut palette",
-    ],
-    technical: [
-      "large-format architectural blueprint aesthetic, deep navy drafting paper, white and copper ink",
-      "even flat drafting table lamp light, deep navy and copper palette, clean geometric shadow",
-    ],
-    ai: [
-      "ultra-photorealistic cinematic render, volumetric fog, Blade Runner visual language",
-      "cool corporate blue-white ambient with single warm crimson accent point, volumetric light shafts",
-    ],
-    privacy: [
-      "conceptual editorial illustration, surrealist juxtaposition of photorealistic elements",
-      "golden hour fortress light at low angle, warm amber and deep shadow palette",
-    ],
-    career: [
-      "cinematic editorial photography, 35mm ground-level lens, golden hour",
-      "dawn raking light at 10 degrees, long shadows, warm amber horizon transitioning to deep violet zenith",
-    ],
-    measurement: [
-      "ultra-photorealistic, 100mm macro lens, f/2.8, rich surface texture",
-      "warm tungsten desk lamp at upper left, deep shadow filling rest of frame, warm gold and dark palette",
-    ],
-  };
+// Category fallbacks when no VisualStyle is set
+const CATEGORY_STYLES: Record<string, [string, string]> = {
+  opinion: [
+    "cinematic editorial photography, 24mm wide-angle, high dynamic range, film color grading",
+    "chiaroscuro single overhead light source, deep navy and cold gray palette with electric crimson accent",
+  ],
+  tools: [
+    "detailed isometric illustration, hyperrealistic material textures, dramatic overhead industrial lighting",
+    "warm amber pendant lamps, pools of light on dark concrete, brushed steel and warm walnut palette",
+  ],
+  technical: [
+    "large-format architectural blueprint aesthetic, deep navy drafting paper, white and copper ink",
+    "even flat drafting table lamp light, deep navy and copper palette, clean geometric shadow",
+  ],
+  ai: [
+    "ultra-photorealistic cinematic render, volumetric fog, Blade Runner visual language",
+    "cool corporate blue-white ambient with single warm crimson accent point, volumetric light shafts",
+  ],
+  privacy: [
+    "conceptual editorial illustration, surrealist juxtaposition of photorealistic elements",
+    "golden hour fortress light at low angle, warm amber and deep shadow palette",
+  ],
+  career: [
+    "cinematic editorial photography, 35mm ground-level lens, golden hour",
+    "dawn raking light at 10 degrees, long shadows, warm amber horizon transitioning to deep violet zenith",
+  ],
+  measurement: [
+    "ultra-photorealistic, 100mm macro lens, f/2.8, rich surface texture",
+    "warm tungsten desk lamp at upper left, deep shadow filling rest of frame, warm gold and dark palette",
+  ],
+};
 
-  const [styleDirective, lighting] = styleMap[category] ?? styleMap["opinion"];
+function buildImagePrompt(
+  post: GeneratedPost,
+  imageIndex: number,
+  sceneDesc: string,
+  visualStyle?: string,
+): string {
+  // Prefer explicit visual style from template; fall back to category inference
+  const styleEntry =
+    visualStyle && visualStyle !== "none" && VISUAL_STYLE_OVERRIDES[visualStyle]
+      ? VISUAL_STYLE_OVERRIDES[visualStyle]
+      : CATEGORY_STYLES[inferCategory(
+          post.title,
+          post.subtitle,
+          post.sections[0]?.heading,
+        )] ?? CATEGORY_STYLES["opinion"];
+
+  const [styleDirective, lighting] = styleEntry;
+
   const angle =
     imageIndex === 0
       ? "establishing wide-angle cinematic composition, strong left-third subject placement"
-      : "medium shot, dynamic or isometric perspective";
+      : "medium close-up, dynamic or isometric perspective, subject fills right two-thirds";
 
   return (
     `${sceneDesc}. Highly specific scene with precise material detail. ${angle}, ${lighting}. ` +
@@ -443,10 +523,13 @@ async function handleRequest(req: NextRequest) {
     console.log(`[Generate] Post generated: "${parsedPost.title}" (${parsedPost.sections.length} sections)`);
 
     // 8. Generate and upload images
+    const htmlStyle = (postTemplate?.htmlStyleConfig as HtmlStyleConfig | null) ?? DEFAULT_HTML_STYLE;
+    const visualStyle = htmlStyle.visualStyle ?? undefined;
+
     const imageErrors: string[] = [];
     for (let i = 0; i < parsedPost.image_metaphors.length; i++) {
       const metaphor = parsedPost.image_metaphors[i];
-      const imagenPrompt = buildImagePrompt(parsedPost.title, metaphor.scene_description, i);
+      const imagenPrompt = buildImagePrompt(parsedPost, i, metaphor.scene_description, visualStyle);
 
       try {
         const imgResponse = await ai.models.generateImages({
@@ -470,8 +553,7 @@ async function handleRequest(req: NextRequest) {
       }
     }
 
-    // 9. Compile HTML (use template style if available)
-    const htmlStyle = (postTemplate?.htmlStyleConfig as HtmlStyleConfig | null) ?? DEFAULT_HTML_STYLE;
+    // 9. Compile HTML
     const htmlContent = compilePostToHtml(parsedPost, htmlStyle);
 
     let bloggerResult = null;
